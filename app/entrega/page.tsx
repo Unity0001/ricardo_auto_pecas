@@ -190,8 +190,8 @@ export default function EntregaPage() {
               <h3 className="mb-2 text-xl font-bold">Horário estimado</h3>
 
               <p>
-                Seu pedido ficará pronto em aproxim , melhor cada vez caralho tava ancore. Tá
-                escrevendo o que show cara Isai Caralho, nem sabiaadamente 40 minutos.
+                Seu pedido ficará pronto em aproximente, 40 minutos. Venha buscá-lo no horário
+                estimado para evitar filas.
               </p>
             </div>
 

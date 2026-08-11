@@ -10,9 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 interface CarrinhoItem {
   id: string;
-
   quantity: number;
-
   misturas?: {
     id: string;
   }[];
@@ -42,7 +40,16 @@ export async function POST(req: NextRequest) {
   let referencia = '';
 
   try {
-    const { carrinho, entrega, cliente } = await req.json();
+    const body = await req.json();
+
+    const carrinho = body.carrinho;
+    const entrega = body.entrega;
+    const cliente = body.cliente;
+
+    console.log('========== INICIANDO PIX ==========');
+    console.log('Carrinho:', carrinho);
+    console.log('Entrega:', entrega);
+    console.log('Cliente:', cliente);
 
     if (!Array.isArray(carrinho) || carrinho.length === 0) {
       return NextResponse.json(
@@ -57,57 +64,69 @@ export async function POST(req: NextRequest) {
 
     const produtosSnapshot = await getDocs(collection(db, 'products'));
 
-    const produtos: Produto[] = produtosSnapshot.docs.map((doc) => {
-      const data = doc.data();
+    const produtos: Produto[] = produtosSnapshot.docs.map((item) => {
+      const data = item.data();
 
       return {
-        id: doc.id,
-
-        price: Number(data.price),
+        id: item.id,
+        price: Number(data.price || 0),
       };
     });
 
     const misturasSnapshot = await getDocs(collection(db, 'misturas'));
 
-    const misturasBanco: Mistura[] = misturasSnapshot.docs.map((doc) => {
-      const data = doc.data();
+    const misturasBanco: Mistura[] = misturasSnapshot.docs.map((item) => {
+      const data = item.data();
 
       return {
-        id: doc.id,
-
+        id: item.id,
         acrescimo: Number(data.acrescimo || 0),
       };
     });
 
-    let total = 0;
+    let subtotal = 0;
 
     for (const item of carrinho as CarrinhoItem[]) {
       const produto = produtos.find((p) => p.id === item.id);
 
       if (!produto) {
+        console.warn('Produto não encontrado:', item.id);
+
         continue;
       }
 
       const quantidade = Number(item.quantity || 1);
 
-      total += produto.price * quantidade;
+      subtotal += produto.price * quantidade;
 
       if (Array.isArray(item.misturas)) {
         for (const mistura of item.misturas) {
           const misturaBanco = misturasBanco.find((m) => m.id === mistura.id);
 
           if (misturaBanco) {
-            total += misturaBanco.acrescimo * quantidade;
+            subtotal += misturaBanco.acrescimo * quantidade;
           }
         }
       }
     }
 
-    const taxaEntrega = entrega?.tipo === 'Entrega' ? Number(process.env.TAXA_ENTREGA || 5) : 0;
+    subtotal = Number(subtotal.toFixed(2));
 
-    total += taxaEntrega;
+    let taxaEntrega = 0;
 
-    total = Number(total.toFixed(2));
+    if (entrega?.tipo === 'Entrega') {
+      if (entrega?.tipoEntrega === 'Entrega Rodovias') {
+        taxaEntrega = 8;
+      } else {
+        taxaEntrega = 5;
+      }
+    }
+
+    const total = Number((subtotal + taxaEntrega).toFixed(2));
+
+    console.log('Subtotal:', subtotal);
+    console.log('Taxa de entrega:', taxaEntrega);
+    console.log('Total:', total);
 
     if (total <= 0) {
       return NextResponse.json(
@@ -126,27 +145,16 @@ export async function POST(req: NextRequest) {
 
     await setDoc(prePedidoRef, {
       cart: carrinho,
-
       entrega,
-
-      subtotal: Number((total - taxaEntrega).toFixed(2)),
-
+      subtotal,
       taxaEntrega,
-
       total,
-
       tipoPagamento: 'PIX',
-
       status: 'Aguardando pagamento',
-
       processado: false,
-
       referencia,
-
       cliente: cliente || null,
-
       pagamentoId: null,
-
       criadoEm: new Date(),
     });
 
@@ -155,6 +163,8 @@ export async function POST(req: NextRequest) {
     const idempotencyKey = uuidv4();
 
     const payment = new Payment(client);
+
+    console.log('Criando pagamento no Mercado Pago...');
 
     const resultado = await payment.create({
       body: {
@@ -182,6 +192,72 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    console.log('Resposta do Mercado Pago:', resultado);
+
+    const transactionData = resultado?.point_of_interaction?.transaction_data;
+
+    console.log('Transaction Data:', transactionData);
+
+    if (!transactionData) {
+      console.error('Mercado Pago não retornou transaction_data');
+
+      await deleteDoc(prePedidoRef);
+
+      return NextResponse.json(
+        {
+          error: 'Mercado Pago não retornou os dados do PIX.',
+          details: {
+            id: resultado?.id,
+            status: resultado?.status,
+            status_detail: resultado?.status_detail,
+          },
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    if (!transactionData.qr_code) {
+      console.error('Mercado Pago não retornou qr_code');
+
+      await deleteDoc(prePedidoRef);
+
+      return NextResponse.json(
+        {
+          error: 'Mercado Pago não retornou o Pix Copia e Cola.',
+          details: {
+            id: resultado?.id,
+            status: resultado?.status,
+            status_detail: resultado?.status_detail,
+          },
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    if (!transactionData.qr_code_base64) {
+      console.error('Mercado Pago não retornou qr_code_base64');
+
+      await deleteDoc(prePedidoRef);
+
+      return NextResponse.json(
+        {
+          error: 'Mercado Pago não retornou o QR Code.',
+          details: {
+            id: resultado?.id,
+            status: resultado?.status,
+            status_detail: resultado?.status_detail,
+          },
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
     await updateDoc(prePedidoRef, {
       pagamentoId: String(resultado.id),
 
@@ -190,55 +266,21 @@ export async function POST(req: NextRequest) {
       statusDetail: resultado.status_detail || null,
     });
 
-    const transactionData = resultado.point_of_interaction?.transaction_data;
-
     console.log('========== PIX CRIADO ==========');
 
     console.log({
       id: resultado.id,
-
       status: resultado.status,
-
       status_detail: resultado.status_detail,
-
       transaction_amount: resultado.transaction_amount,
-
       payment_method_id: resultado.payment_method_id,
-
       external_reference: resultado.external_reference,
-
-      qr_code: transactionData?.qr_code,
-
-      has_qr_code_base64: !!transactionData?.qr_code_base64,
+      qr_code: transactionData.qr_code,
+      has_qr_code_base64: !!transactionData.qr_code_base64,
+      ticket_url: transactionData.ticket_url,
     });
 
     console.log('================================');
-
-    if (!transactionData?.qr_code) {
-      await deleteDoc(prePedidoRef);
-
-      return NextResponse.json(
-        {
-          error: 'Mercado Pago não retornou o Pix Copia e Cola',
-        },
-        {
-          status: 500,
-        }
-      );
-    }
-
-    if (!transactionData?.qr_code_base64) {
-      await deleteDoc(prePedidoRef);
-
-      return NextResponse.json(
-        {
-          error: 'Mercado Pago não retornou o QR Code',
-        },
-        {
-          status: 500,
-        }
-      );
-    }
 
     return NextResponse.json({
       id: resultado.id,
@@ -251,6 +293,10 @@ export async function POST(req: NextRequest) {
 
       valor: total,
 
+      subtotal,
+
+      taxaEntrega,
+
       qr_code_base64: transactionData.qr_code_base64,
 
       qr_code: transactionData.qr_code,
@@ -261,6 +307,8 @@ export async function POST(req: NextRequest) {
     console.error('========== ERRO PIX ==========');
 
     console.error(error);
+
+    console.error('Mensagem:', error?.message);
 
     console.error('================================');
 

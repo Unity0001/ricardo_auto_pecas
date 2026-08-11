@@ -21,23 +21,44 @@ export default function PixPage() {
   useEffect(() => {
     async function gerarPix() {
       try {
-        const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        const pedidoPix = sessionStorage.getItem('pedidoPix');
 
-        const entrega = JSON.parse(localStorage.getItem('entrega') || '{}');
+        let cart: any[] = [];
+        let entrega: any = {};
+        let subtotal = 0;
+        let taxa = 0;
+        let total = 0;
+
+        if (pedidoPix) {
+          const dados = JSON.parse(pedidoPix);
+
+          cart = dados.cart || [];
+          entrega = dados.entrega || {};
+          subtotal = Number(dados.subtotal || 0);
+          taxa = Number(dados.taxaEntrega || 0);
+          total = Number(dados.total || 0);
+        } else {
+          cart = JSON.parse(localStorage.getItem('cart') || '[]');
+
+          entrega = JSON.parse(localStorage.getItem('entrega') || '{}');
+
+          if (!cart.length) {
+            throw new Error('Carrinho vazio.');
+          }
+
+          subtotal = cart.reduce(
+            (acc: number, item: any) => acc + Number(item.price) * Number(item.quantity || 1),
+            0
+          );
+
+          taxa = Number(entrega?.taxaEntrega || 0);
+
+          total = subtotal + taxa;
+        }
 
         if (!cart.length) {
           throw new Error('Carrinho vazio.');
         }
-
-        const subtotal = cart.reduce(
-          (acc: number, item: any) => acc + Number(item.price) * Number(item.quantity || 1),
-          0
-        );
-
-        // TAXA DE ENTREGA = R$ 5,00
-        const taxa = entrega?.tipo === 'Entrega' ? 5 : 0;
-
-        const total = subtotal + taxa;
 
         setValor(total);
 
@@ -55,6 +76,10 @@ export default function PixPage() {
 
             entrega,
 
+            subtotal,
+
+            taxaEntrega: taxa,
+
             descricao: 'Pedido Marmitaria Rei do Suco',
           }),
         });
@@ -67,10 +92,6 @@ export default function PixPage() {
           throw new Error(data.error || 'Erro ao gerar PIX');
         }
 
-        // ======================================
-        // DADOS DO PAGAMENTO
-        // ======================================
-
         setPaymentId(String(data.id));
 
         setStatusPagamento(data.status || 'pending');
@@ -78,10 +99,6 @@ export default function PixPage() {
         setQrCode(data.qr_code_base64 || '');
 
         setCopiaCola(data.qr_code || '');
-
-        // ======================================
-        // SALVAR ID
-        // ======================================
 
         sessionStorage.setItem('pixPaymentId', String(data.id));
       } catch (error: any) {
@@ -95,10 +112,6 @@ export default function PixPage() {
 
     gerarPix();
   }, []);
-
-  // ==========================================
-  // VERIFICAR PAGAMENTO
-  // ==========================================
 
   useEffect(() => {
     if (!paymentId) {
@@ -132,10 +145,6 @@ export default function PixPage() {
 
         setStatusPagamento(data.status);
 
-        // =================================
-        // PAGAMENTO APROVADO
-        // =================================
-
         if (data.status === 'approved') {
           clearInterval(intervalo);
 
@@ -144,6 +153,8 @@ export default function PixPage() {
           localStorage.removeItem('entrega');
 
           sessionStorage.removeItem('pixPaymentId');
+
+          sessionStorage.removeItem('pedidoPix');
         }
       } catch (error) {
         console.error('Erro ao verificar PIX:', error);
@@ -155,10 +166,6 @@ export default function PixPage() {
     return () => clearInterval(intervalo);
   }, [paymentId, statusPagamento]);
 
-  // ==========================================
-  // COPIAR PIX
-  // ==========================================
-
   function copiarPix() {
     if (!copiaCola) {
       return;
@@ -169,17 +176,9 @@ export default function PixPage() {
     alert('Código PIX copiado!');
   }
 
-  // ==========================================
-  // VOLTAR
-  // ==========================================
-
   function voltarInicio() {
     router.push('/');
   }
-
-  // ==========================================
-  // CARREGANDO
-  // ==========================================
 
   if (loading) {
     return (
@@ -190,10 +189,6 @@ export default function PixPage() {
       </main>
     );
   }
-
-  // ==========================================
-  // ERRO
-  // ==========================================
 
   if (erro) {
     return (
@@ -211,10 +206,6 @@ export default function PixPage() {
       </main>
     );
   }
-
-  // ==========================================
-  // PAGAMENTO APROVADO
-  // ==========================================
 
   if (statusPagamento === 'approved') {
     return (
@@ -239,10 +230,6 @@ export default function PixPage() {
     );
   }
 
-  // ==========================================
-  // PAGAMENTO RECUSADO
-  // ==========================================
-
   if (statusPagamento === 'rejected' || statusPagamento === 'cancelled') {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
@@ -264,18 +251,12 @@ export default function PixPage() {
     );
   }
 
-  // ==========================================
-  // PIX AGUARDANDO PAGAMENTO
-  // ==========================================
-
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
       <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg">
         <h1 className="mb-4 text-center text-2xl font-bold">Pagamento via PIX</h1>
 
         <p className="mb-5 text-center text-xl font-bold">R$ {valor.toFixed(2)}</p>
-
-        {/* STATUS */}
 
         <div className="mb-6 rounded-lg bg-yellow-50 p-4 text-center">
           <p className="font-semibold text-yellow-700">⏳ Aguardando pagamento</p>
@@ -285,13 +266,9 @@ export default function PixPage() {
           </p>
         </div>
 
-        {/* QR CODE */}
-
         {qrCode && (
           <img src={`data:image/png;base64,${qrCode}`} alt="QR Code Pix" className="mx-auto w-72" />
         )}
-
-        {/* COPIA E COLA */}
 
         {copiaCola && (
           <>
