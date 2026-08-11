@@ -58,6 +58,13 @@ export default function Dashboard() {
             {' '}
             🥗 <br /> Acompanhamentos{' '}
           </button>{' '}
+          <button
+            onClick={() => router.push('/admin/dashboards/sobremesas  ')}
+            className=" rounded-xl bg-orange-600 p-10 text-xl font-bold text-white shadow-lg transition hover:bg-orange-700 active:scale-95 "
+          >
+            {' '}
+            🍮 <br /> Sobremesas{' '}
+          </button>{' '}
         </div>{' '}
       </div>{' '}
     </main>

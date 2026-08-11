@@ -64,6 +64,7 @@ export default function MontarMarmita() {
         id: docSnap.id,
         ...(docSnap.data() as Omit<Produto, 'id'>),
       };
+
       setMarmita(produto);
       setTotal(Number(produto.price));
     }
@@ -72,10 +73,14 @@ export default function MontarMarmita() {
 
     const listaMisturas: Mistura[] = [];
 
-    misturasSnapshot.forEach((doc) => {
+    misturasSnapshot.forEach((item) => {
+      const data = item.data();
+
+      if (data.ativo !== true) return;
+
       listaMisturas.push({
-        id: doc.id,
-        ...(doc.data() as Omit<Mistura, 'id'>),
+        id: item.id,
+        ...(data as Omit<Mistura, 'id'>),
       });
     });
 
@@ -85,10 +90,14 @@ export default function MontarMarmita() {
 
     const listaAcompanhamentos: Acompanhamento[] = [];
 
-    acompanhamentosSnapshot.forEach((doc) => {
+    acompanhamentosSnapshot.forEach((item) => {
+      const data = item.data();
+
+      if (data.ativo !== true) return;
+
       listaAcompanhamentos.push({
-        id: doc.id,
-        ...(doc.data() as Omit<Acompanhamento, 'id'>),
+        id: item.id,
+        ...(data as Omit<Acompanhamento, 'id'>),
       });
     });
 
@@ -132,6 +141,7 @@ export default function MontarMarmita() {
 
     setMisturasSelecionadas(novaLista);
   }
+
   function adicionarMistura(item: Mistura) {
     if (misturasSelecionadas.length >= marmita!.maxMisturas) {
       return;
@@ -222,7 +232,6 @@ export default function MontarMarmita() {
           ← Voltar
         </button>
 
-        {/* Informações da Marmita */}
         <div className="rounded-xl bg-white p-6 shadow">
           <img
             src={marmita.image}
@@ -239,7 +248,6 @@ export default function MontarMarmita() {
           <p className="mt-4 text-3xl font-bold text-green-700">R$ {total.toFixed(2)}</p>
         </div>
 
-        {/* Misturas */}
         <div className="mt-10 rounded-xl bg-white p-6 shadow">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-3xl font-bold">Escolha {marmita.maxMisturas} Mistura(s)</h2>
@@ -256,19 +264,18 @@ export default function MontarMarmita() {
               <div
                 key={mistura.id}
                 className="
-        rounded-lg
-        border
-        p-4
-        transition
-        hover:bg-gray-100
-        flex
-        flex-col
-        h-[140px]
-      "
+                  flex
+                  h-[140px]
+                  flex-col
+                  rounded-lg
+                  border
+                  p-4
+                  transition
+                  hover:bg-gray-100
+                "
               >
                 <p className="text-lg font-bold">{mistura.nome}</p>
 
-                {/* Mantém o espaço mesmo sem acréscimo */}
                 <div className="mt-1 h-5">
                   {mistura.acrescimo > 0 && (
                     <p className="text-sm text-green-600">
@@ -282,15 +289,15 @@ export default function MontarMarmita() {
                     onClick={() => removerMistura(mistura)}
                     disabled={quantidade === 0}
                     className={`
-            h-10
-            w-10
-            rounded-lg
-            bg-red-600
-            font-bold
-            text-white
-            transition
-            ${quantidade === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-red-700'}
-          `}
+                      h-10
+                      w-10
+                      rounded-lg
+                      bg-red-600
+                      font-bold
+                      text-white
+                      transition
+                      ${quantidade === 0 ? 'cursor-not-allowed opacity-30' : 'hover:bg-red-700'}
+                    `}
                   >
                     -
                   </button>
@@ -301,19 +308,19 @@ export default function MontarMarmita() {
                     onClick={() => adicionarMistura(mistura)}
                     disabled={misturasSelecionadas.length >= marmita.maxMisturas}
                     className={`
-            h-10
-            w-10
-            rounded-lg
-            bg-green-600
-            font-bold
-            text-white
-            transition
-            ${
-              misturasSelecionadas.length >= marmita.maxMisturas
-                ? 'opacity-30 cursor-not-allowed'
-                : 'hover:bg-green-700'
-            }
-          `}
+                      h-10
+                      w-10
+                      rounded-lg
+                      bg-green-600
+                      font-bold
+                      text-white
+                      transition
+                      ${
+                        misturasSelecionadas.length >= marmita.maxMisturas
+                          ? 'cursor-not-allowed opacity-30'
+                          : 'hover:bg-green-700'
+                      }
+                    `}
                   >
                     +
                   </button>
@@ -329,7 +336,6 @@ export default function MontarMarmita() {
           )}
         </div>
 
-        {/* Acompanhamentos */}
         <div className="mt-10 rounded-xl bg-white p-6 shadow">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-3xl font-bold">
@@ -362,7 +368,6 @@ export default function MontarMarmita() {
           </div>
         </div>
 
-        {/* Resumo */}
         <div className="mt-10 rounded-xl bg-white p-6 shadow">
           <h2 className="mb-6 text-3xl font-bold">Resumo do Pedido</h2>
 
@@ -378,7 +383,6 @@ export default function MontarMarmita() {
                     if (!acc[m.id]) {
                       acc[m.id] = {
                         ...m,
-
                         quantidade: 1,
                       };
                     } else {
@@ -399,7 +403,8 @@ export default function MontarMarmita() {
               </ul>
             )}
 
-            <h3 className="mb-2 font-bold">Acompanhamentos</h3>
+            <h3 className="mb-2 mt-6 font-bold">Acompanhamentos</h3>
+
             {acompanhamentosSelecionados.length === 0 ? (
               <p className="text-gray-500">Nenhum selecionado.</p>
             ) : (
@@ -411,19 +416,20 @@ export default function MontarMarmita() {
             )}
           </div>
         </div>
+
         <button
           onClick={adicionarAoCarrinho}
           className="
-    rounded-lg
-    bg-green-600
-    px-5
-    py-3
-    font-semibold
-    text-white
-    shadow
-    transition
-    hover:bg-green-700
-  "
+            rounded-lg
+            bg-green-600
+            px-5
+            py-3
+            font-semibold
+            text-white
+            shadow
+            transition
+            hover:bg-green-700
+          "
         >
           Finalizar compra
         </button>

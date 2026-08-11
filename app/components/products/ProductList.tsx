@@ -17,24 +17,64 @@ export default function ProductList() {
   const router = useRouter();
 
   async function carregarProdutos() {
-    const snapshot = await getDocs(collection(db, 'products'));
+    // =========================
+    // PRODUTOS
+    // =========================
+    const productsSnapshot = await getDocs(collection(db, 'products'));
 
-    const lista: any[] = [];
+    const listaProdutos: any[] = [];
 
-    snapshot.forEach((doc) => {
-      lista.push({
+    productsSnapshot.forEach((doc) => {
+      const data = doc.data();
+
+      if (data.ativo !== true) return;
+
+      listaProdutos.push({
         id: doc.id,
-        ...doc.data(),
+        ...data,
       });
     });
 
-    lista.sort((a, b) => {
+    // =========================
+    // SOBREMESAS
+    // =========================
+    const sobremesasSnapshot = await getDocs(collection(db, 'sobremesas'));
+
+    const listaSobremesas: any[] = [];
+
+    sobremesasSnapshot.forEach((doc) => {
+      const data = doc.data();
+
+      if (data.ativo !== true) return;
+
+      listaSobremesas.push({
+        id: `sobremesa-${doc.id}`,
+        title: data.nome,
+        subtitle: '',
+        description: '',
+        image: data.image || '',
+        price: Number(data.price || 0),
+        category: 'Sobremesas',
+
+        // Guarda o ID original caso precise posteriormente
+        sobremesaId: doc.id,
+      });
+    });
+
+    // Junta produtos + sobremesas
+    const listaCompleta = [...listaProdutos, ...listaSobremesas];
+
+    // =========================
+    // ORDENAÇÃO
+    // =========================
+    listaCompleta.sort((a, b) => {
       if (a.category === 'Combos' && b.category !== 'Combos') return -1;
       if (a.category !== 'Combos' && b.category === 'Combos') return 1;
+
       return a.title.localeCompare(b.title);
     });
 
-    setProducts(lista);
+    setProducts(listaCompleta);
   }
 
   useEffect(() => {
@@ -52,14 +92,41 @@ export default function ProductList() {
   const filteredProducts = products.filter((product) => {
     const categoria = selectedCategory === 'Todos' || product.category === selectedCategory;
 
-    const pesquisa =
-      product.title.toLowerCase().includes(search.toLowerCase()) ||
-      product.description.toLowerCase().includes(search.toLowerCase());
+    const titulo = (product.title || '').toLowerCase();
+    const descricao = (product.description || '').toLowerCase();
+    const busca = search.toLowerCase();
+
+    const pesquisa = titulo.includes(busca) || descricao.includes(busca);
 
     return categoria && pesquisa;
   });
 
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
+
+  function adicionarAoCarrinho(product: any) {
+    // Marmitas continuam indo para a tela de montagem
+    if (product.category === 'Marmitas') {
+      router.push(`/montar/${product.id}`);
+      return;
+    }
+
+    const novoCarrinho = [...cart];
+
+    const index = novoCarrinho.findIndex((item) => item.id === product.id);
+
+    if (index >= 0) {
+      novoCarrinho[index].quantity += 1;
+    } else {
+      novoCarrinho.push({
+        ...product,
+        quantity: 1,
+      });
+    }
+
+    setCart(novoCarrinho);
+
+    localStorage.setItem('cart', JSON.stringify(novoCarrinho));
+  }
 
   return (
     <div className="w-full overflow-x-hidden">
@@ -91,28 +158,7 @@ export default function ProductList() {
               subtitle={product.subtitle}
               description={product.description}
               price={product.price}
-              onAddToCart={() => {
-                if (product.category === 'Marmitas') {
-                  router.push(`/montar/${product.id}`);
-                  return;
-                }
-
-                const novoCarrinho = [...cart];
-
-                const index = novoCarrinho.findIndex((item) => item.id === product.id);
-
-                if (index >= 0) {
-                  novoCarrinho[index].quantity += 1;
-                } else {
-                  novoCarrinho.push({
-                    ...product,
-                    quantity: 1,
-                  });
-                }
-
-                setCart(novoCarrinho);
-                localStorage.setItem('cart', JSON.stringify(novoCarrinho));
-              }}
+              onAddToCart={() => adicionarAoCarrinho(product)}
             />
           ))}
 

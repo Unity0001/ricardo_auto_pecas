@@ -136,6 +136,8 @@ export default function ProdutosPage() {
       misturas: [],
 
       acompanhamentos: [],
+
+      ativo: true,
     });
 
     setTitle('');
@@ -161,6 +163,14 @@ export default function ProdutosPage() {
     if (!confirmar) return;
 
     await deleteDoc(doc(db, 'products', id));
+
+    carregarProdutos();
+  }
+
+  async function alternarAtivo(product: any) {
+    await updateDoc(doc(db, 'products', product.id), {
+      ativo: product.ativo !== true,
+    });
 
     carregarProdutos();
   }
@@ -315,7 +325,7 @@ export default function ProdutosPage() {
               <option>Combos</option>
               <option>Marmitas</option>
               <option>Bebidas</option>
-              <option>Pizzas</option>
+              <option>Sucos</option>
             </select>
 
             <input
@@ -404,7 +414,7 @@ export default function ProdutosPage() {
                 <option>Combos</option>
                 <option>Marmitas</option>
                 <option>Bebidas</option>
-                <option>Pizzas</option>
+                <option>Sucos</option>
               </select>
 
               <input
@@ -508,6 +518,16 @@ export default function ProdutosPage() {
                   )}
 
                   <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                    <button
+                      onClick={() => alternarAtivo(product)}
+                      className={`rounded-lg p-3 font-bold text-white ${
+                        product.ativo === true
+                          ? 'bg-orange-500 hover:bg-orange-600'
+                          : 'bg-green-600 hover:bg-green-700'
+                      }`}
+                    >
+                      {product.ativo === true ? '⏸ Inativar' : '▶️ Ativar'}
+                    </button>
                     <button
                       onClick={() => editarProduto(product)}
                       className="

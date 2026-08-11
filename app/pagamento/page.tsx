@@ -19,7 +19,6 @@ export default function PagamentoPage() {
 
   useEffect(() => {
     const savedCart = localStorage.getItem('cart');
-
     const savedEntrega = localStorage.getItem('entrega');
 
     if (savedCart) {
@@ -36,7 +35,7 @@ export default function PagamentoPage() {
     0
   );
 
-  const taxaEntrega = entrega?.tipo === 'Entrega' ? 5 : 0;
+  const taxaEntrega = Number(entrega?.taxaEntrega || 0);
 
   const total = subtotal + taxaEntrega;
 
@@ -160,17 +159,27 @@ export default function PagamentoPage() {
       <div className="mx-auto w-full max-w-md rounded-xl bg-white p-6 shadow-md">
         <h1 className="mb-6 text-center text-2xl font-bold">Forma de Pagamento</h1>
 
-        {/* TOTAL */}
-
         <div className="mb-6 rounded-lg bg-gray-100 p-4 text-center">
+          <p className="text-sm text-gray-500">Subtotal</p>
+
+          <p className="mt-1 text-lg font-semibold">R$ {subtotal.toFixed(2)}</p>
+
+          <p className="mt-3 text-sm text-gray-500">Taxa de entrega</p>
+
+          <p className="mt-1 text-lg font-semibold">R$ {taxaEntrega.toFixed(2)}</p>
+
+          {entrega?.tipoEntrega && (
+            <p className="mt-2 text-sm text-gray-600">{entrega.tipoEntrega}</p>
+          )}
+
+          <div className="my-4 border-t" />
+
           <p className="text-sm text-gray-500">Total do pedido</p>
 
           <p className="mt-1 text-2xl font-bold">R$ {total.toFixed(2)}</p>
         </div>
 
         <div className="space-y-4">
-          {/* CRÉDITO */}
-
           <button
             onClick={() => {
               setPagamento('Crédito');
@@ -180,8 +189,6 @@ export default function PagamentoPage() {
           >
             💳 Cartão de Crédito
           </button>
-
-          {/* DÉBITO */}
 
           <button
             onClick={() => {
@@ -193,8 +200,6 @@ export default function PagamentoPage() {
             💳 Cartão de Débito
           </button>
 
-          {/* PIX */}
-
           <button
             onClick={irParaPix}
             className="w-full rounded-lg bg-green-600 p-4 font-semibold text-white transition hover:bg-green-700"
@@ -202,16 +207,12 @@ export default function PagamentoPage() {
             ❖ PIX
           </button>
 
-          {/* DINHEIRO */}
-
           <button
             onClick={() => setPagamento('Dinheiro')}
             className="w-full rounded-lg bg-yellow-500 p-4 font-semibold text-white transition hover:bg-yellow-600"
           >
             💵 Dinheiro
           </button>
-
-          {/* TROCO */}
 
           {pagamento === 'Dinheiro' && (
             <div className="mt-6 space-y-4">
@@ -233,8 +234,6 @@ export default function PagamentoPage() {
               </button>
             </div>
           )}
-
-          {/* NOVO PEDIDO */}
 
           <button
             onClick={novoPedido}

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 export default function EntregaPage() {
   const router = useRouter();
 
-  const [tipo, setTipo] = useState<'entrega' | 'retirada' | null>(null);
+  const [tipo, setTipo] = useState<'cidade' | 'rodovias' | 'retirada' | null>(null);
 
   const [nome, setNome] = useState('');
   const [rua, setRua] = useState('');
@@ -15,7 +15,7 @@ export default function EntregaPage() {
   const [bairro, setBairro] = useState('');
   const [referencia, setReferencia] = useState('');
 
-  function continuarEntrega() {
+  function continuarEntrega(taxaEntrega: number, tipoEntrega: string) {
     if (!nome.trim() || !rua.trim() || !numero.trim() || !bairro.trim()) {
       alert('Preencha todos os campos obrigatórios.');
       return;
@@ -25,6 +25,8 @@ export default function EntregaPage() {
       'entrega',
       JSON.stringify({
         tipo: 'Entrega',
+        tipoEntrega,
+        taxaEntrega,
         nome,
         rua,
         numero,
@@ -47,6 +49,8 @@ export default function EntregaPage() {
       'entrega',
       JSON.stringify({
         tipo: 'Retirada',
+        tipoEntrega: 'Retirada',
+        taxaEntrega: 0,
         nome,
       })
     );
@@ -55,9 +59,11 @@ export default function EntregaPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 flex justify-center py-10 px-4">
-      <div className="w-full max-w-4xl rounded-xl bg-white p-8 shadow-lg">
-        <h1 className="mb-8 text-center text-4xl font-bold">Como deseja receber seu pedido?</h1>
+    <main className="flex min-h-screen justify-center bg-gray-100 px-4 py-10">
+      <div className="w-full max-w-4xl rounded-xl bg-white p-5 shadow-lg sm:p-8">
+        <h1 className="mb-8 text-center text-3xl font-bold sm:text-4xl">
+          Como deseja receber seu pedido?
+        </h1>
 
         <div className="mb-8">
           <label className="mb-2 block font-semibold">Nome do Comprador *</label>
@@ -67,49 +73,69 @@ export default function EntregaPage() {
             placeholder="Digite seu nome"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border p-3 outline-none focus:border-green-500"
           />
         </div>
 
-        <div className="mb-10 flex justify-center gap-6">
+        <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <button
-            onClick={() => setTipo('entrega')}
-            className={`rounded-lg px-8 py-4 text-lg font-semibold transition ${
-              tipo === 'entrega' ? 'bg-green-600 text-white' : 'bg-gray-200 hover:bg-gray-300'
+            onClick={() => setTipo('cidade')}
+            className={`rounded-lg px-5 py-4 text-lg font-semibold transition ${
+              tipo === 'cidade' ? 'bg-green-600 text-white' : 'bg-gray-200 hover:bg-gray-300'
             }`}
           >
-            🚚 Entrega
+            🚚 Entrega na Cidade
+            <span className="mt-1 block text-sm font-normal">R$ 5,00</span>
+          </button>
+
+          <button
+            onClick={() => setTipo('rodovias')}
+            className={`rounded-lg px-5 py-4 text-lg font-semibold transition ${
+              tipo === 'rodovias' ? 'bg-orange-600 text-white' : 'bg-gray-200 hover:bg-gray-300'
+            }`}
+          >
+            🛣️ Entrega Rodovias
+            <span className="mt-1 block text-sm font-normal">R$ 7,00</span>
           </button>
 
           <button
             onClick={() => setTipo('retirada')}
-            className={`rounded-lg px-8 py-4 text-lg font-semibold transition ${
+            className={`rounded-lg px-5 py-4 text-lg font-semibold transition ${
               tipo === 'retirada' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'
             }`}
           >
             🏪 Retirada
+            <span className="mt-1 block text-sm font-normal">Grátis</span>
           </button>
         </div>
 
-        {tipo === 'entrega' && (
+        {(tipo === 'cidade' || tipo === 'rodovias') && (
           <div className="space-y-5">
-            <h2 className="text-2xl font-bold">Endereço de Entrega</h2>
+            <div className="rounded-lg bg-gray-50 p-4">
+              <h2 className="text-2xl font-bold">Endereço de Entrega</h2>
+
+              <p className="mt-1 text-gray-600">
+                {tipo === 'cidade'
+                  ? 'Entrega dentro da cidade — R$ 5,00'
+                  : 'Entrega em rodovias — R$ 7,00'}
+              </p>
+            </div>
 
             <input
               type="text"
               placeholder="Rua *"
               value={rua}
               onChange={(e) => setRua(e.target.value)}
-              className="w-full rounded-lg border p-3"
+              className="w-full rounded-lg border p-3 outline-none focus:border-green-500"
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <input
                 type="text"
                 placeholder="Número *"
                 value={numero}
                 onChange={(e) => setNumero(e.target.value)}
-                className="rounded-lg border p-3"
+                className="rounded-lg border p-3 outline-none focus:border-green-500"
               />
 
               <input
@@ -117,7 +143,7 @@ export default function EntregaPage() {
                 placeholder="Complemento"
                 value={complemento}
                 onChange={(e) => setComplemento(e.target.value)}
-                className="rounded-lg border p-3"
+                className="rounded-lg border p-3 outline-none focus:border-green-500"
               />
             </div>
 
@@ -126,7 +152,7 @@ export default function EntregaPage() {
               placeholder="Bairro *"
               value={bairro}
               onChange={(e) => setBairro(e.target.value)}
-              className="w-full rounded-lg border p-3"
+              className="w-full rounded-lg border p-3 outline-none focus:border-green-500"
             />
 
             <textarea
@@ -134,12 +160,17 @@ export default function EntregaPage() {
               placeholder="Ponto de referência"
               value={referencia}
               onChange={(e) => setReferencia(e.target.value)}
-              className="w-full rounded-lg border p-3"
+              className="w-full rounded-lg border p-3 outline-none focus:border-green-500"
             />
 
             <button
-              onClick={continuarEntrega}
-              className="w-full rounded-lg bg-green-600 py-4 text-xl font-semibold text-white hover:bg-green-700"
+              onClick={() =>
+                continuarEntrega(
+                  tipo === 'cidade' ? 5 : 7,
+                  tipo === 'cidade' ? 'Entrega na Cidade' : 'Entrega Rodovias'
+                )
+              }
+              className="w-full rounded-lg bg-green-600 py-4 text-xl font-semibold text-white transition hover:bg-green-700"
             >
               Continuar para Pagamento
             </button>
@@ -152,19 +183,21 @@ export default function EntregaPage() {
               <h3 className="mb-2 text-xl font-bold">Endereço da Loja</h3>
 
               <p>Rod. Washington Luiz, 220</p>
-              <p>Vila Monte Negro</p>
               <p>Espírito Santo do Pinhal - SP</p>
             </div>
 
             <div className="rounded-lg border p-5">
               <h3 className="mb-2 text-xl font-bold">Horário estimado</h3>
 
-              <p>Seu pedido ficará pronto em aproximadamente 40 minutos.</p>
+              <p>
+                Seu pedido ficará pronto em aproxim , melhor cada vez caralho tava ancore. Tá
+                escrevendo o que show cara Isai Caralho, nem sabiaadamente 40 minutos.
+              </p>
             </div>
 
             <button
               onClick={continuarRetirada}
-              className="w-full rounded-lg bg-blue-600 py-4 text-xl font-semibold text-white hover:bg-blue-700"
+              className="w-full rounded-lg bg-blue-600 py-4 text-xl font-semibold text-white transition hover:bg-blue-700"
             >
               Continuar para Pagamento
             </button>

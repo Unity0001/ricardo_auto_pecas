@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { collection, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
@@ -53,9 +53,117 @@ export default function PedidosPage() {
 
   const [filtro, setFiltro] = useState<StatusPedido>('Processando');
 
-  // Pedido atualmente aberto
   const [pedidoSelecionado, setPedidoSelecionado] = useState<Pedido | null>(null);
 
+  // Controle do áudio
+  const [somAtivado, setSomAtivado] = useState(false);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  function ativarSom() {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+
+      if (!AudioContextClass) {
+        alert('Seu navegador não suporta áudio.');
+        return;
+      }
+
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContextClass();
+      }
+
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+
+      setSomAtivado(true);
+
+      const oscillator = audioContextRef.current.createOscillator();
+
+      const gain = audioContextRef.current.createGain();
+
+      oscillator.connect(gain);
+      gain.connect(audioContextRef.current.destination);
+
+      oscillator.type = 'sine';
+
+      oscillator.frequency.setValueAtTime(700, audioContextRef.current.currentTime);
+
+      gain.gain.setValueAtTime(0.0001, audioContextRef.current.currentTime);
+
+      gain.gain.exponentialRampToValueAtTime(0.2, audioContextRef.current.currentTime + 0.02);
+
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioContextRef.current.currentTime + 0.15);
+
+      oscillator.start();
+
+      oscillator.stop(audioContextRef.current.currentTime + 0.15);
+    } catch (error) {
+      console.error('Erro ao ativar som:', error);
+    }
+  }
+
+  function tocarSomNovoPedido() {
+    if (!somAtivado) {
+      return;
+    }
+
+    try {
+      const audioContext = audioContextRef.current;
+
+      if (!audioContext) {
+        return;
+      }
+
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+
+      const oscillator = audioContext.createOscillator();
+
+      const gain = audioContext.createGain();
+
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+
+      oscillator.type = 'sine';
+
+      const agora = audioContext.currentTime;
+
+      // Primeiro toque
+      oscillator.frequency.setValueAtTime(880, agora);
+
+      // Segundo toque
+      oscillator.frequency.setValueAtTime(1174, agora + 0.15);
+
+      // Terceiro toque
+      oscillator.frequency.setValueAtTime(880, agora + 0.3);
+
+      gain.gain.setValueAtTime(0.0001, agora);
+
+      gain.gain.exponentialRampToValueAtTime(0.5, agora + 0.03);
+
+      gain.gain.exponentialRampToValueAtTime(0.0001, agora + 0.15);
+
+      gain.gain.exponentialRampToValueAtTime(0.5, agora + 0.18);
+
+      gain.gain.exponentialRampToValueAtTime(0.0001, agora + 0.3);
+
+      gain.gain.exponentialRampToValueAtTime(0.5, agora + 0.33);
+
+      gain.gain.exponentialRampToValueAtTime(0.0001, agora + 0.7);
+
+      oscillator.start(agora);
+
+      oscillator.stop(agora + 0.7);
+    } catch (error) {
+      console.error('Erro ao tocar som:', error);
+    }
+  }
+
+  /*
+   * AUTENTICAÇÃO
+   */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
@@ -78,6 +186,9 @@ export default function PedidosPage() {
     return () => unsubscribe();
   }, [router]);
 
+  /*
+   * MONITORAMENTO DOS PEDIDOS
+   */
   useEffect(() => {
     if (!autorizado) {
       return;
@@ -87,6 +198,12 @@ export default function PedidosPage() {
 
     const pedidosQuery = query(pedidosRef, orderBy('criadoEm', 'desc'));
 
+    // IDs dos pedidos que já existiam
+    const pedidosConhecidos = new Set<string>();
+
+    // Evita som na primeira carga
+    let primeiraCarga = true;
+
     const unsubscribe = onSnapshot(
       pedidosQuery,
       (snapshot) => {
@@ -94,6 +211,33 @@ export default function PedidosPage() {
           id: pedido.id,
           ...pedido.data(),
         })) as Pedido[];
+
+        /*
+         * PRIMEIRA CARGA
+         *
+         * Apenas registra os pedidos existentes.
+         * Não toca som.
+         */
+        if (primeiraCarga) {
+          snapshot.docs.forEach((pedido) => {
+            pedidosConhecidos.add(pedido.id);
+          });
+
+          primeiraCarga = false;
+        } else {
+          /*
+           * ALTERAÇÕES POSTERIORES
+           *
+           * Detecta somente pedidos realmente novos.
+           */
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added' && !pedidosConhecidos.has(change.doc.id)) {
+              pedidosConhecidos.add(change.doc.id);
+
+              tocarSomNovoPedido();
+            }
+          });
+        }
 
         setPedidos(lista);
         setCarregando(false);
@@ -108,15 +252,17 @@ export default function PedidosPage() {
     );
 
     return () => unsubscribe();
-  }, [autorizado]);
+  }, [autorizado, somAtivado]);
 
+  /*
+   * ALTERAR STATUS
+   */
   async function alterarStatus(pedidoId: string, novoStatus: StatusPedido) {
     try {
       await updateDoc(doc(db, 'pedidos', pedidoId), {
         status: novoStatus,
       });
 
-      // Atualiza o modal imediatamente
       setPedidoSelecionado((atual) => {
         if (!atual || atual.id !== pedidoId) {
           return atual;
@@ -134,6 +280,9 @@ export default function PedidosPage() {
     }
   }
 
+  /*
+   * FORMATAR DATA
+   */
   function formatarData(timestamp: any) {
     if (!timestamp) {
       return 'Data não disponível';
@@ -154,6 +303,9 @@ export default function PedidosPage() {
     }
   }
 
+  /*
+   * FILTROS
+   */
   const pedidosFiltrados = pedidos.filter((pedido) => (pedido.status || 'Processando') === filtro);
 
   const quantidadeProcessando = pedidos.filter(
@@ -164,6 +316,9 @@ export default function PedidosPage() {
 
   const quantidadeCancelados = pedidos.filter((pedido) => pedido.status === 'Cancelado').length;
 
+  /*
+   * STATUS VISUAL
+   */
   function statusVisual(status?: StatusPedido) {
     switch (status || 'Processando') {
       case 'Pronto':
@@ -189,6 +344,9 @@ export default function PedidosPage() {
     }
   }
 
+  /*
+   * CARREGANDO
+   */
   if (carregando) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
@@ -199,6 +357,9 @@ export default function PedidosPage() {
     );
   }
 
+  /*
+   * ERRO / ACESSO NEGADO
+   */
   if (erro) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
@@ -220,6 +381,9 @@ export default function PedidosPage() {
     );
   }
 
+  /*
+   * PÁGINA
+   */
   return (
     <main className="min-h-screen bg-gray-100 p-4 md:p-6">
       <div className="mx-auto max-w-7xl">
@@ -234,13 +398,45 @@ export default function PedidosPage() {
             </p>
           </div>
 
-          <button
-            onClick={() => router.push('/admin/dashboards')}
-            className="rounded-lg bg-gray-800 px-5 py-3 font-semibold text-white transition hover:bg-gray-900"
-          >
-            ← Dashboards
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {/* BOTÃO DO SOM */}
+
+            <button
+              onClick={() => {
+                if (somAtivado) {
+                  setSomAtivado(false);
+                  return;
+                }
+
+                ativarSom();
+              }}
+              className={`rounded-lg px-5 py-3 font-semibold text-white transition ${
+                somAtivado ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-500 hover:bg-orange-600'
+              }`}
+            >
+              {somAtivado ? '🔊 Som ativado' : '🔇 Ativar som'}
+            </button>
+
+            <button
+              onClick={() => router.push('/admin/dashboards')}
+              className="rounded-lg bg-gray-800 px-5 py-3 font-semibold text-white transition hover:bg-gray-900"
+            >
+              ← Dashboards
+            </button>
+          </div>
         </div>
+
+        {/* AVISO DO SOM */}
+
+        {!somAtivado && (
+          <div className="mb-6 rounded-xl border border-orange-200 bg-orange-50 p-4">
+            <p className="text-sm font-semibold text-orange-800">
+              🔔 Ative o som para receber um aviso quando chegar um novo pedido.
+            </p>
+          </div>
+        )}
+
+        {/* CONTADORES */}
 
         <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <button
@@ -283,6 +479,8 @@ export default function PedidosPage() {
           </button>
         </div>
 
+        {/* TÍTULO */}
+
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">{filtro}</h2>
 
@@ -290,6 +488,8 @@ export default function PedidosPage() {
             {pedidosFiltrados.length} {pedidosFiltrados.length === 1 ? 'pedido' : 'pedidos'}
           </span>
         </div>
+
+        {/* LISTA */}
 
         {pedidosFiltrados.length === 0 ? (
           <div className="rounded-xl bg-white p-10 text-center shadow-sm">
@@ -390,6 +590,8 @@ export default function PedidosPage() {
         )}
       </div>
 
+      {/* MODAL */}
+
       {pedidoSelecionado && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
@@ -399,7 +601,7 @@ export default function PedidosPage() {
             className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* CABEÇALHO DO MODAL */}
+            {/* CABEÇALHO */}
 
             <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white p-5">
               <div>
@@ -602,6 +804,8 @@ export default function PedidosPage() {
                   </div>
                 </div>
               </section>
+
+              {/* ALTERAR STATUS */}
 
               <section className="border-t pt-5">
                 <h3 className="mb-3 text-lg font-bold">Alterar status</h3>

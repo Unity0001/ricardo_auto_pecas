@@ -53,6 +53,7 @@ export default function MisturasPage() {
       await addDoc(collection(db, 'misturas'), {
         nome,
         acrescimo: Number(acrescimo),
+        ativo: true,
       });
     }
 
@@ -68,6 +69,14 @@ export default function MisturasPage() {
     setNome(item.nome);
 
     setAcrescimo(item.acrescimo?.toString() || '0');
+  }
+
+  async function alternarAtivo(item: any) {
+    await updateDoc(doc(db, 'misturas', item.id), {
+      ativo: item.ativo !== true,
+    });
+
+    carregarMisturas();
   }
 
   async function excluirMistura(id: string) {
@@ -166,14 +175,37 @@ export default function MisturasPage() {
               "
             >
               <div>
-                <h3 className="text-xl font-bold">{item.nome}</h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-xl font-bold">{item.nome}</h3>
+
+                  <span
+                    className={`rounded-full px-3 py-1 text-sm font-bold ${
+                      item.ativo === true
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}
+                  >
+                    {item.ativo === true ? 'Ativo' : 'Inativo'}
+                  </span>
+                </div>
 
                 <p className="text-gray-600">
                   Acréscimo: R$ {Number(item.acrescimo || 0).toFixed(2)}
                 </p>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button
+                  onClick={() => alternarAtivo(item)}
+                  className={`rounded-lg px-5 py-2 font-semibold text-white transition ${
+                    item.ativo === true
+                      ? 'bg-orange-500 hover:bg-orange-600'
+                      : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                >
+                  {item.ativo === true ? '⏸ Inativar' : '▶️ Ativar'}
+                </button>
+
                 <button
                   onClick={() => editarMistura(item)}
                   className="
