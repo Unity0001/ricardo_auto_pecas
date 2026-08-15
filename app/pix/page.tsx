@@ -9,13 +9,10 @@ export default function PixPage() {
   const [qrCode, setQrCode] = useState('');
   const [copiaCola, setCopiaCola] = useState('');
   const [valor, setValor] = useState(0);
-
   const [paymentId, setPaymentId] = useState('');
   const [statusPagamento, setStatusPagamento] = useState('pending');
-
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
-
   const [verificandoPagamento, setVerificandoPagamento] = useState(false);
 
   useEffect(() => {
@@ -39,7 +36,6 @@ export default function PixPage() {
           total = Number(dados.total || 0);
         } else {
           cart = JSON.parse(localStorage.getItem('cart') || '[]');
-
           entrega = JSON.parse(localStorage.getItem('entrega') || '{}');
 
           if (!cart.length) {
@@ -47,7 +43,7 @@ export default function PixPage() {
           }
 
           subtotal = cart.reduce(
-            (acc: number, item: any) => acc + Number(item.price) * Number(item.quantity || 1),
+            (acc: number, item: any) => acc + Number(item.price || 0) * Number(item.quantity || 1),
             0
           );
 
@@ -60,26 +56,23 @@ export default function PixPage() {
           throw new Error('Carrinho vazio.');
         }
 
+        if (!total || total <= 0) {
+          throw new Error('Valor do pedido inválido.');
+        }
+
         setValor(total);
 
         const response = await fetch('/api/pix', {
           method: 'POST',
-
           headers: {
             'Content-Type': 'application/json',
           },
-
           body: JSON.stringify({
             valor: total,
-
             carrinho: cart,
-
             entrega,
-
             subtotal,
-
             taxaEntrega: taxa,
-
             descricao: 'Pedido Marmitaria Rei do Suco',
           }),
         });
@@ -92,18 +85,28 @@ export default function PixPage() {
           throw new Error(data.error || 'Erro ao gerar PIX');
         }
 
+        if (!data.id) {
+          throw new Error('Mercado Pago não retornou o ID do pagamento.');
+        }
+
+        if (!data.qr_code) {
+          console.error('qr_code não encontrado:', data);
+          throw new Error('O Mercado Pago não retornou o código PIX.');
+        }
+
+        if (!data.qr_code_base64) {
+          console.error('qr_code_base64 não encontrado:', data);
+          throw new Error('O Mercado Pago não retornou o QR Code.');
+        }
+
         setPaymentId(String(data.id));
-
         setStatusPagamento(data.status || 'pending');
-
-        setQrCode(data.qr_code_base64 || '');
-
-        setCopiaCola(data.qr_code || '');
+        setQrCode(data.qr_code_base64);
+        setCopiaCola(data.qr_code);
 
         sessionStorage.setItem('pixPaymentId', String(data.id));
       } catch (error: any) {
-        console.error(error);
-
+        console.error('Erro ao gerar PIX:', error);
         setErro(error.message || 'Erro ao gerar PIX');
       } finally {
         setLoading(false);
@@ -149,11 +152,9 @@ export default function PixPage() {
           clearInterval(intervalo);
 
           localStorage.removeItem('cart');
-
           localStorage.removeItem('entrega');
 
           sessionStorage.removeItem('pixPaymentId');
-
           sessionStorage.removeItem('pedidoPix');
         }
       } catch (error) {
@@ -166,14 +167,18 @@ export default function PixPage() {
     return () => clearInterval(intervalo);
   }, [paymentId, statusPagamento]);
 
-  function copiarPix() {
+  async function copiarPix() {
     if (!copiaCola) {
       return;
     }
 
-    navigator.clipboard.writeText(copiaCola);
-
-    alert('Código PIX copiado!');
+    try {
+      await navigator.clipboard.writeText(copiaCola);
+      alert('Código PIX copiado!');
+    } catch (error) {
+      console.error('Erro ao copiar PIX:', error);
+      alert('Não foi possível copiar o código PIX.');
+    }
   }
 
   function voltarInicio() {
@@ -267,7 +272,9 @@ export default function PixPage() {
         </div>
 
         {qrCode && (
-          <img src={`data:image/png;base64,${qrCode}`} alt="QR Code Pix" className="mx-auto w-72" />
+          <div className="flex justify-center">
+            <img src={`data:image/png;base64,${qrCode}`} alt="QR Code Pix" className="h-72 w-72" />
+          </div>
         )}
 
         {copiaCola && (

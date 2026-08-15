@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
 
-import { db } from '@/app/lib/firebase';
+import { getFirestore } from 'firebase-admin/firestore';
 
 import { v4 as uuidv4 } from 'uuid';
 
 interface CarrinhoItem {
   id: string;
   quantity: number;
+  price?: number;
+  title?: string;
   misturas?: {
     id: string;
   }[];
@@ -19,11 +21,13 @@ interface CarrinhoItem {
 interface Produto {
   id: string;
   price: number;
+  ativo?: boolean;
 }
 
 interface Mistura {
   id: string;
   acrescimo: number;
+  ativo?: boolean;
 }
 
 const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
@@ -31,6 +35,19 @@ const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
 if (!accessToken) {
   throw new Error('MERCADO_PAGO_ACCESS_TOKEN não configurado');
 }
+
+const firebaseApp =
+  getApps().length > 0
+    ? getApps()[0]
+    : initializeApp({
+        credential: cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        }),
+      });
+
+const adminDb = getFirestore(firebaseApp);
 
 const client = new MercadoPagoConfig({
   accessToken,
@@ -43,12 +60,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const carrinho = body.carrinho;
-    const entrega = body.entrega;
-    const cliente = body.cliente;
+
+    const entrega = body.entrega || {};
+
+    const cliente = body.cliente || null;
 
     console.log('========== INICIANDO PIX ==========');
+
     console.log('Carrinho:', carrinho);
+
     console.log('Entrega:', entrega);
+
     console.log('Cliente:', cliente);
 
     if (!Array.isArray(carrinho) || carrinho.length === 0) {
@@ -62,7 +84,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const produtosSnapshot = await getDocs(collection(db, 'products'));
+    const produtosSnapshot = await adminDb.collection('products').get();
 
     const produtos: Produto[] = produtosSnapshot.docs.map((item) => {
       const data = item.data();
@@ -70,10 +92,13 @@ export async function POST(req: NextRequest) {
       return {
         id: item.id,
         price: Number(data.price || 0),
+        ativo: data.ativo === true,
       };
     });
 
-    const misturasSnapshot = await getDocs(collection(db, 'misturas'));
+    console.log('Produtos encontrados:', produtos.length);
+
+    const misturasSnapshot = await adminDb.collection('misturas').get();
 
     const misturasBanco: Mistura[] = misturasSnapshot.docs.map((item) => {
       const data = item.data();
@@ -81,6 +106,7 @@ export async function POST(req: NextRequest) {
       return {
         id: item.id,
         acrescimo: Number(data.acrescimo || 0),
+        ativo: data.ativo === true,
       };
     });
 
@@ -89,15 +115,34 @@ export async function POST(req: NextRequest) {
     for (const item of carrinho as CarrinhoItem[]) {
       const produto = produtos.find((p) => p.id === item.id);
 
-      if (!produto) {
-        console.warn('Produto não encontrado:', item.id);
+      let preco = 0;
 
-        continue;
+      if (produto) {
+        preco = Number(produto.price || 0);
+      } else if (typeof item.price === 'number') {
+        preco = Number(item.price);
+
+        console.warn(
+          'Produto não encontrado no Firebase. Usando preço enviado pelo carrinho:',
+          item.id,
+          preco
+        );
+      } else {
+        console.error('Produto não encontrado e sem preço no carrinho:', item.id);
+
+        return NextResponse.json(
+          {
+            error: `Produto não encontrado: ${item.id}`,
+          },
+          {
+            status: 400,
+          }
+        );
       }
 
       const quantidade = Number(item.quantity || 1);
 
-      subtotal += produto.price * quantidade;
+      subtotal += preco * quantidade;
 
       if (Array.isArray(item.misturas)) {
         for (const mistura of item.misturas) {
@@ -125,7 +170,9 @@ export async function POST(req: NextRequest) {
     const total = Number((subtotal + taxaEntrega).toFixed(2));
 
     console.log('Subtotal:', subtotal);
+
     console.log('Taxa de entrega:', taxaEntrega);
+
     console.log('Total:', total);
 
     if (total <= 0) {
@@ -140,25 +187,6 @@ export async function POST(req: NextRequest) {
     }
 
     referencia = `PEDIDO-${Date.now()}-${uuidv4().slice(0, 8).toUpperCase()}`;
-
-    const prePedidoRef = doc(db, 'pedidos_pix', referencia);
-
-    await setDoc(prePedidoRef, {
-      cart: carrinho,
-      entrega,
-      subtotal,
-      taxaEntrega,
-      total,
-      tipoPagamento: 'PIX',
-      status: 'Aguardando pagamento',
-      processado: false,
-      referencia,
-      cliente: cliente || null,
-      pagamentoId: null,
-      criadoEm: new Date(),
-    });
-
-    console.log('Pré-pedido PIX criado:', referencia);
 
     const idempotencyKey = uuidv4();
 
@@ -177,7 +205,7 @@ export async function POST(req: NextRequest) {
         payer: {
           email: cliente?.email || 'cliente@email.com',
 
-          first_name: cliente?.nome || 'Cliente',
+          first_name: cliente?.nome || entrega?.nome || 'Cliente',
         },
 
         external_reference: referencia,
@@ -199,16 +227,15 @@ export async function POST(req: NextRequest) {
     console.log('Transaction Data:', transactionData);
 
     if (!transactionData) {
-      console.error('Mercado Pago não retornou transaction_data');
-
-      await deleteDoc(prePedidoRef);
-
       return NextResponse.json(
         {
           error: 'Mercado Pago não retornou os dados do PIX.',
+
           details: {
             id: resultado?.id,
+
             status: resultado?.status,
+
             status_detail: resultado?.status_detail,
           },
         },
@@ -219,16 +246,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (!transactionData.qr_code) {
-      console.error('Mercado Pago não retornou qr_code');
-
-      await deleteDoc(prePedidoRef);
-
       return NextResponse.json(
         {
           error: 'Mercado Pago não retornou o Pix Copia e Cola.',
+
           details: {
             id: resultado?.id,
+
             status: resultado?.status,
+
             status_detail: resultado?.status_detail,
           },
         },
@@ -239,16 +265,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (!transactionData.qr_code_base64) {
-      console.error('Mercado Pago não retornou qr_code_base64');
-
-      await deleteDoc(prePedidoRef);
-
       return NextResponse.json(
         {
           error: 'Mercado Pago não retornou o QR Code.',
+
           details: {
             id: resultado?.id,
+
             status: resultado?.status,
+
             status_detail: resultado?.status_detail,
           },
         },
@@ -258,25 +283,64 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await updateDoc(prePedidoRef, {
-      pagamentoId: String(resultado.id),
+    await adminDb
+      .collection('pedidos_pix')
+      .doc(referencia)
+      .set({
+        cart: carrinho,
 
-      statusPagamento: resultado.status || 'pending',
+        entrega,
 
-      statusDetail: resultado.status_detail || null,
-    });
+        subtotal,
+
+        taxaEntrega,
+
+        total,
+
+        tipoPagamento: 'PIX',
+
+        status: 'Aguardando pagamento',
+
+        processado: false,
+
+        referencia,
+
+        cliente,
+
+        pagamentoId: String(resultado.id),
+
+        statusPagamento: resultado.status || 'pending',
+
+        statusDetail: resultado.status_detail || null,
+
+        criadoEm: new Date(),
+
+        qrCode: transactionData.qr_code,
+
+        qrCodeBase64: transactionData.qr_code_base64,
+      });
+
+    console.log('Pré-pedido PIX criado:', referencia);
 
     console.log('========== PIX CRIADO ==========');
 
     console.log({
       id: resultado.id,
+
       status: resultado.status,
+
       status_detail: resultado.status_detail,
+
       transaction_amount: resultado.transaction_amount,
+
       payment_method_id: resultado.payment_method_id,
+
       external_reference: resultado.external_reference,
+
       qr_code: transactionData.qr_code,
+
       has_qr_code_base64: !!transactionData.qr_code_base64,
+
       ticket_url: transactionData.ticket_url,
     });
 
@@ -312,17 +376,9 @@ export async function POST(req: NextRequest) {
 
     console.error('================================');
 
-    if (referencia) {
-      try {
-        await deleteDoc(doc(db, 'pedidos_pix', referencia));
-      } catch (deleteError) {
-        console.error('Erro ao remover pré-pedido:', deleteError);
-      }
-    }
-
     return NextResponse.json(
       {
-        error: 'Erro ao gerar PIX',
+        error: error?.message || 'Erro ao gerar PIX',
 
         details: error?.message || 'Erro desconhecido',
       },
