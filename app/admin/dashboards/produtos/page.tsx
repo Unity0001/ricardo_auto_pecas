@@ -207,7 +207,7 @@ export default function ProdutosPage() {
       image: editImage,
     };
 
-    if (editCategory === 'Marmitas') {
+    if (editCategory === 'Marmitex') {
       dados.maxMisturas = editMaxMisturas;
       dados.maxAcompanhamentos = editMaxAcompanhamentos;
     } else {
@@ -323,7 +323,7 @@ export default function ProdutosPage() {
               className="rounded border p-3"
             >
               <option>Combos</option>
-              <option>Marmitas</option>
+              <option>Marmitex</option>
               <option>Bebidas</option>
               <option>Sucos</option>
             </select>
@@ -343,7 +343,7 @@ export default function ProdutosPage() {
               className="rounded border p-3"
             />
 
-            {category === 'Marmitas' && (
+            {category === 'Marmitex' && (
               <>
                 <input
                   type="number"
@@ -412,7 +412,7 @@ export default function ProdutosPage() {
                 className="rounded border p-3"
               >
                 <option>Combos</option>
-                <option>Marmitas</option>
+                <option>Marmitex</option>
                 <option>Bebidas</option>
                 <option>Sucos</option>
               </select>
@@ -432,7 +432,7 @@ export default function ProdutosPage() {
                 placeholder="URL da imagem"
               />
 
-              {editCategory === 'Marmitas' && (
+              {editCategory === 'Marmitex' && (
                 <>
                   <input
                     type="number"
@@ -504,7 +504,7 @@ export default function ProdutosPage() {
                     R$ {Number(product.price).toFixed(2)}
                   </p>
 
-                  {product.category === 'Marmitas' && (
+                  {product.category === 'Marmitex' && (
                     <>
                       <p className="mt-2 text-sm">
                         🥩 Misturas: {product.misturas?.length || 0}/{product.maxMisturas || 0}

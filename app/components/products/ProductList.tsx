@@ -11,70 +11,97 @@ import FloatingCart from './FloatingCart';
 
 export default function ProductList() {
   const [products, setProducts] = useState<any[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState('Todos');
+  const [selectedCategory, setSelectedCategory] = useState('Marmitex');
   const [cart, setCart] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+
   const router = useRouter();
 
   async function carregarProdutos() {
-    // =========================
-    // PRODUTOS
-    // =========================
-    const productsSnapshot = await getDocs(collection(db, 'products'));
+    try {
+      const productsSnapshot = await getDocs(collection(db, 'products'));
 
-    const listaProdutos: any[] = [];
+      const listaProdutos: any[] = [];
 
-    productsSnapshot.forEach((doc) => {
-      const data = doc.data();
+      productsSnapshot.forEach((doc) => {
+        const data = doc.data();
 
-      if (data.ativo !== true) return;
+        if (data.ativo !== true) return;
 
-      listaProdutos.push({
-        id: doc.id,
-        ...data,
+        listaProdutos.push({
+          id: doc.id,
+          ...data,
+        });
       });
-    });
 
-    // =========================
-    // SOBREMESAS
-    // =========================
-    const sobremesasSnapshot = await getDocs(collection(db, 'sobremesas'));
+      const sobremesasSnapshot = await getDocs(collection(db, 'sobremesas'));
 
-    const listaSobremesas: any[] = [];
+      const listaSobremesas: any[] = [];
 
-    sobremesasSnapshot.forEach((doc) => {
-      const data = doc.data();
+      sobremesasSnapshot.forEach((doc) => {
+        const data = doc.data();
 
-      if (data.ativo !== true) return;
+        if (data.ativo !== true) return;
 
-      listaSobremesas.push({
-        id: `sobremesa-${doc.id}`,
-        title: data.nome,
-        subtitle: '',
-        description: '',
-        image: data.image || '',
-        price: Number(data.price || 0),
-        category: 'Sobremesas',
-
-        // Guarda o ID original caso precise posteriormente
-        sobremesaId: doc.id,
+        listaSobremesas.push({
+          id: `sobremesa-${doc.id}`,
+          title: data.nome,
+          subtitle: '',
+          description: '',
+          image: data.image || '',
+          price: Number(data.price || 0),
+          category: 'Sobremesas',
+          sobremesaId: doc.id,
+        });
       });
-    });
 
-    // Junta produtos + sobremesas
-    const listaCompleta = [...listaProdutos, ...listaSobremesas];
+      const listaCompleta = [...listaProdutos, ...listaSobremesas];
 
-    // =========================
-    // ORDENAÇÃO
-    // =========================
-    listaCompleta.sort((a, b) => {
-      if (a.category === 'Combos' && b.category !== 'Combos') return -1;
-      if (a.category !== 'Combos' && b.category === 'Combos') return 1;
+      const ordemMarmitex: Record<string, number> = {
+        'Marmita P': 1,
+        'Marmita PP': 2,
+        'Marmita M': 3,
+        'Marmita G': 4,
+        'Marmita GG': 5,
+        'Marmitex P': 1,
+        'Marmitex PP': 2,
+        'Marmitex M': 3,
+        'Marmitex G': 4,
+        'Marmitex GG': 5,
+      };
 
-      return a.title.localeCompare(b.title);
-    });
+      listaCompleta.sort((a, b) => {
+        const aMarmitex = a.category === 'Marmitex' || a.category === 'Marmitas';
 
-    setProducts(listaCompleta);
+        const bMarmitex = b.category === 'Marmitex' || b.category === 'Marmitas';
+
+        if (aMarmitex && !bMarmitex) {
+          return -1;
+        }
+
+        if (!aMarmitex && bMarmitex) {
+          return 1;
+        }
+
+        if (aMarmitex && bMarmitex) {
+          const ordemA = ordemMarmitex[a.title] ?? 999;
+
+          const ordemB = ordemMarmitex[b.title] ?? 999;
+
+          if (ordemA !== ordemB) {
+            return ordemA - ordemB;
+          }
+
+          return (a.title || '').localeCompare(b.title || '', 'pt-BR');
+        }
+
+        return (a.title || '').localeCompare(b.title || '', 'pt-BR');
+      });
+
+      setProducts(listaCompleta);
+    } catch (error) {
+      console.error('Erro ao carregar produtos:', error);
+    }
   }
 
   useEffect(() => {
@@ -87,13 +114,25 @@ export default function ProductList() {
     }
   }, []);
 
-  const categories = ['Todos', ...Array.from(new Set(products.map((p) => p.category)))];
+  const categories = [
+    'Marmitex',
+    'Bebidas',
+    'Sucos',
+    'Panquecas',
+    'Lanches Naturais',
+    'Sobremesas',
+  ];
 
   const filteredProducts = products.filter((product) => {
-    const categoria = selectedCategory === 'Todos' || product.category === selectedCategory;
+    const isMarmitex = product.category === 'Marmitex' || product.category === 'Marmitas';
+
+    const categoria =
+      selectedCategory === 'Marmitex' ? isMarmitex : product.category === selectedCategory;
 
     const titulo = (product.title || '').toLowerCase();
+
     const descricao = (product.description || '').toLowerCase();
+
     const busca = search.toLowerCase();
 
     const pesquisa = titulo.includes(busca) || descricao.includes(busca);
@@ -104,9 +143,11 @@ export default function ProductList() {
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   function adicionarAoCarrinho(product: any) {
-    // Marmitas continuam indo para a tela de montagem
-    if (product.category === 'Marmitas') {
+    const isMarmitex = product.category === 'Marmitex' || product.category === 'Marmitas';
+
+    if (isMarmitex) {
       router.push(`/montar/${product.id}`);
+
       return;
     }
 
