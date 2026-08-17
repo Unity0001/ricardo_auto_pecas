@@ -77,25 +77,29 @@ export default function PixPage() {
           }),
         });
 
-        const data = await response.json();
+        let data: any;
+
+        try {
+          data = await response.json();
+        } catch {
+          throw new Error('O servidor não retornou uma resposta válida.');
+        }
 
         console.log('Resposta PIX:', data);
 
         if (!response.ok) {
-          throw new Error(data.error || 'Erro ao gerar PIX');
+          throw new Error(data?.error || 'Erro ao gerar PIX');
         }
 
-        if (!data.id) {
+        if (!data?.id) {
           throw new Error('Mercado Pago não retornou o ID do pagamento.');
         }
 
-        if (!data.qr_code) {
-          console.error('qr_code não encontrado:', data);
+        if (!data?.qr_code) {
           throw new Error('O Mercado Pago não retornou o código PIX.');
         }
 
-        if (!data.qr_code_base64) {
-          console.error('qr_code_base64 não encontrado:', data);
+        if (!data?.qr_code_base64) {
           throw new Error('O Mercado Pago não retornou o QR Code.');
         }
 
@@ -107,7 +111,8 @@ export default function PixPage() {
         sessionStorage.setItem('pixPaymentId', String(data.id));
       } catch (error: any) {
         console.error('Erro ao gerar PIX:', error);
-        setErro(error.message || 'Erro ao gerar PIX');
+
+        setErro(error?.message || 'Erro ao gerar PIX');
       } finally {
         setLoading(false);
       }
@@ -129,32 +134,41 @@ export default function PixPage() {
       return;
     }
 
-    const intervalo = setInterval(async () => {
+    const verificarPagamento = async () => {
       try {
         setVerificandoPagamento(true);
 
-        const response = await fetch(`/api/pix/status?id=${paymentId}`, {
+        const response = await fetch(`/api/pix/status?id=${encodeURIComponent(paymentId)}`, {
           method: 'GET',
           cache: 'no-store',
         });
 
-        const data = await response.json();
+        let data: any;
+
+        try {
+          data = await response.json();
+        } catch {
+          console.error('Resposta inválida da API de status PIX.');
+
+          return;
+        }
 
         console.log('Status PIX:', data);
 
         if (!response.ok) {
+          console.error('Erro ao consultar status:', data);
+
           return;
         }
 
-        setStatusPagamento(data.status);
+        setStatusPagamento(data.status || 'pending');
 
         if (data.status === 'approved') {
-          clearInterval(intervalo);
-
           localStorage.removeItem('cart');
           localStorage.removeItem('entrega');
 
           sessionStorage.removeItem('pixPaymentId');
+
           sessionStorage.removeItem('pedidoPix');
         }
       } catch (error) {
@@ -162,9 +176,15 @@ export default function PixPage() {
       } finally {
         setVerificandoPagamento(false);
       }
-    }, 5000);
+    };
 
-    return () => clearInterval(intervalo);
+    verificarPagamento();
+
+    const intervalo = setInterval(verificarPagamento, 5000);
+
+    return () => {
+      clearInterval(intervalo);
+    };
   }, [paymentId, statusPagamento]);
 
   async function copiarPix() {
@@ -174,14 +194,22 @@ export default function PixPage() {
 
     try {
       await navigator.clipboard.writeText(copiaCola);
+
       alert('Código PIX copiado!');
     } catch (error) {
       console.error('Erro ao copiar PIX:', error);
+
       alert('Não foi possível copiar o código PIX.');
     }
   }
 
   function voltarInicio() {
+    localStorage.removeItem('cart');
+    localStorage.removeItem('entrega');
+
+    sessionStorage.removeItem('pixPaymentId');
+    sessionStorage.removeItem('pedidoPix');
+
     router.push('/');
   }
 
@@ -197,13 +225,19 @@ export default function PixPage() {
 
   if (erro) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6">
+      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
         <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg">
-          <p className="mb-6 text-center font-semibold text-red-600">{erro}</p>
+          <div className="mb-5 text-center text-5xl">❌</div>
+
+          <h1 className="mb-3 text-center text-xl font-bold text-red-600">
+            Não foi possível gerar o PIX
+          </h1>
+
+          <p className="mb-6 text-center text-gray-600">{erro}</p>
 
           <button
             onClick={voltarInicio}
-            className="w-full rounded bg-gray-700 py-3 text-white hover:bg-gray-800"
+            className="w-full rounded-lg bg-gray-700 py-3 font-semibold text-white hover:bg-gray-800"
           >
             ← Voltar para o início
           </button>
@@ -214,15 +248,21 @@ export default function PixPage() {
 
   if (statusPagamento === 'approved') {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6">
+      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
         <div className="w-full max-w-md rounded-xl bg-white p-8 text-center shadow-lg">
           <div className="mb-5 text-6xl">✅</div>
 
           <h1 className="mb-3 text-2xl font-bold text-green-600">Pagamento confirmado!</h1>
 
-          <p className="mb-6 text-gray-600">Seu pedido foi recebido e já está sendo processado.</p>
+          <p className="mb-4 text-gray-600">Seu pagamento foi aprovado.</p>
 
-          <p className="mb-6 text-xl font-bold">R$ {valor.toFixed(2)}</p>
+          <p className="mb-6 text-gray-600">Seu pedido já foi enviado para a tela de pedidos.</p>
+
+          <div className="mb-6 rounded-lg bg-gray-100 p-4">
+            <p className="text-sm text-gray-500">Valor pago</p>
+
+            <p className="text-2xl font-bold">R$ {valor.toFixed(2)}</p>
+          </div>
 
           <button
             onClick={voltarInicio}
@@ -237,7 +277,7 @@ export default function PixPage() {
 
   if (statusPagamento === 'rejected' || statusPagamento === 'cancelled') {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6">
+      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
         <div className="w-full max-w-md rounded-xl bg-white p-8 text-center shadow-lg">
           <div className="mb-5 text-6xl">❌</div>
 
@@ -249,7 +289,7 @@ export default function PixPage() {
             onClick={voltarInicio}
             className="w-full rounded-lg bg-gray-800 py-3 font-semibold text-white hover:bg-gray-900"
           >
-            Voltar para o início
+            ← Voltar para o início
           </button>
         </div>
       </main>
@@ -287,7 +327,7 @@ export default function PixPage() {
 
             <button
               onClick={copiarPix}
-              className="mt-5 w-full rounded bg-green-600 py-3 font-semibold text-white hover:bg-green-700"
+              className="mt-5 w-full rounded-lg bg-green-600 py-3 font-semibold text-white hover:bg-green-700"
             >
               Copiar PIX
             </button>
@@ -300,7 +340,7 @@ export default function PixPage() {
 
         <button
           onClick={voltarInicio}
-          className="mt-4 w-full rounded border border-gray-300 bg-gray-100 py-3 font-semibold text-gray-700 hover:bg-gray-200"
+          className="mt-4 w-full rounded-lg border border-gray-300 bg-gray-100 py-3 font-semibold text-gray-700 hover:bg-gray-200"
         >
           ← Voltar para o início
         </button>

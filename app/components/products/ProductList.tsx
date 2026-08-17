@@ -121,6 +121,7 @@ export default function ProductList() {
     'Panquecas',
     'Lanches Naturais',
     'Sobremesas',
+    'Salgados',
   ];
 
   const filteredProducts = products.filter((product) => {

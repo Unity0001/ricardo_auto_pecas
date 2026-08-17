@@ -2,18 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-
 import { collection, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
-
 import { onAuthStateChanged } from 'firebase/auth';
-
 import { auth, db } from '@/app/lib/firebase';
 
 interface Pedido {
   id: string;
-
   cart: any[];
-
   entrega?: {
     tipo?: string;
     nome?: string;
@@ -23,20 +18,15 @@ interface Pedido {
     bairro?: string;
     referencia?: string;
   };
-
   subtotal?: number;
   taxaEntrega?: number;
   total?: number;
-
   tipoPagamento?: string;
   troco?: number | string | null;
-
   status?: 'Processando' | 'Pronto' | 'Cancelado';
-
   pagamentoId?: string;
   pagamentoStatus?: string;
   pagamentoStatusDetail?: string;
-
   criadoEm?: any;
   pagoEm?: any;
 }
@@ -50,15 +40,12 @@ export default function PedidosPage() {
   const [carregando, setCarregando] = useState(true);
   const [autorizado, setAutorizado] = useState(false);
   const [erro, setErro] = useState('');
-
   const [filtro, setFiltro] = useState<StatusPedido>('Processando');
-
   const [pedidoSelecionado, setPedidoSelecionado] = useState<Pedido | null>(null);
-
-  // Controle do áudio
   const [somAtivado, setSomAtivado] = useState(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
+
   function ativarSom() {
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -79,7 +66,6 @@ export default function PedidosPage() {
       setSomAtivado(true);
 
       const oscillator = audioContextRef.current.createOscillator();
-
       const gain = audioContextRef.current.createGain();
 
       oscillator.connect(gain);
@@ -120,7 +106,6 @@ export default function PedidosPage() {
       }
 
       const oscillator = audioContext.createOscillator();
-
       const gain = audioContext.createGain();
 
       oscillator.connect(gain);
@@ -130,13 +115,8 @@ export default function PedidosPage() {
 
       const agora = audioContext.currentTime;
 
-      // Primeiro toque
       oscillator.frequency.setValueAtTime(880, agora);
-
-      // Segundo toque
       oscillator.frequency.setValueAtTime(1174, agora + 0.15);
-
-      // Terceiro toque
       oscillator.frequency.setValueAtTime(880, agora + 0.3);
 
       gain.gain.setValueAtTime(0.0001, agora);
@@ -154,16 +134,12 @@ export default function PedidosPage() {
       gain.gain.exponentialRampToValueAtTime(0.0001, agora + 0.7);
 
       oscillator.start(agora);
-
       oscillator.stop(agora + 0.7);
     } catch (error) {
       console.error('Erro ao tocar som:', error);
     }
   }
 
-  /*
-   * AUTENTICAÇÃO
-   */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
@@ -173,10 +149,8 @@ export default function PedidosPage() {
 
       if (user.email !== 'admin@gmail.com') {
         setErro('Você não possui permissão para acessar os pedidos.');
-
         setAutorizado(false);
         setCarregando(false);
-
         return;
       }
 
@@ -186,9 +160,6 @@ export default function PedidosPage() {
     return () => unsubscribe();
   }, [router]);
 
-  /*
-   * MONITORAMENTO DOS PEDIDOS
-   */
   useEffect(() => {
     if (!autorizado) {
       return;
@@ -198,10 +169,7 @@ export default function PedidosPage() {
 
     const pedidosQuery = query(pedidosRef, orderBy('criadoEm', 'desc'));
 
-    // IDs dos pedidos que já existiam
     const pedidosConhecidos = new Set<string>();
-
-    // Evita som na primeira carga
     let primeiraCarga = true;
 
     const unsubscribe = onSnapshot(
@@ -212,12 +180,6 @@ export default function PedidosPage() {
           ...pedido.data(),
         })) as Pedido[];
 
-        /*
-         * PRIMEIRA CARGA
-         *
-         * Apenas registra os pedidos existentes.
-         * Não toca som.
-         */
         if (primeiraCarga) {
           snapshot.docs.forEach((pedido) => {
             pedidosConhecidos.add(pedido.id);
@@ -225,15 +187,9 @@ export default function PedidosPage() {
 
           primeiraCarga = false;
         } else {
-          /*
-           * ALTERAÇÕES POSTERIORES
-           *
-           * Detecta somente pedidos realmente novos.
-           */
           snapshot.docChanges().forEach((change) => {
             if (change.type === 'added' && !pedidosConhecidos.has(change.doc.id)) {
               pedidosConhecidos.add(change.doc.id);
-
               tocarSomNovoPedido();
             }
           });
@@ -244,9 +200,7 @@ export default function PedidosPage() {
       },
       (error) => {
         console.error('Erro ao carregar pedidos:', error);
-
         setErro('Não foi possível carregar os pedidos.');
-
         setCarregando(false);
       }
     );
@@ -254,9 +208,6 @@ export default function PedidosPage() {
     return () => unsubscribe();
   }, [autorizado, somAtivado]);
 
-  /*
-   * ALTERAR STATUS
-   */
   async function alterarStatus(pedidoId: string, novoStatus: StatusPedido) {
     try {
       await updateDoc(doc(db, 'pedidos', pedidoId), {
@@ -275,14 +226,10 @@ export default function PedidosPage() {
       });
     } catch (error) {
       console.error('Erro ao alterar status:', error);
-
       alert('Não foi possível alterar o status do pedido.');
     }
   }
 
-  /*
-   * FORMATAR DATA
-   */
   function formatarData(timestamp: any) {
     if (!timestamp) {
       return 'Data não disponível';
@@ -303,9 +250,6 @@ export default function PedidosPage() {
     }
   }
 
-  /*
-   * FILTROS
-   */
   const pedidosFiltrados = pedidos.filter((pedido) => (pedido.status || 'Processando') === filtro);
 
   const quantidadeProcessando = pedidos.filter(
@@ -316,9 +260,6 @@ export default function PedidosPage() {
 
   const quantidadeCancelados = pedidos.filter((pedido) => pedido.status === 'Cancelado').length;
 
-  /*
-   * STATUS VISUAL
-   */
   function statusVisual(status?: StatusPedido) {
     switch (status || 'Processando') {
       case 'Pronto':
@@ -344,9 +285,6 @@ export default function PedidosPage() {
     }
   }
 
-  /*
-   * CARREGANDO
-   */
   if (carregando) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
@@ -357,9 +295,6 @@ export default function PedidosPage() {
     );
   }
 
-  /*
-   * ERRO / ACESSO NEGADO
-   */
   if (erro) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-100 p-6">
@@ -381,14 +316,9 @@ export default function PedidosPage() {
     );
   }
 
-  /*
-   * PÁGINA
-   */
   return (
     <main className="min-h-screen bg-gray-100 p-4 md:p-6">
       <div className="mx-auto max-w-7xl">
-        {/* CABEÇALHO */}
-
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">Pedidos</h1>
@@ -399,8 +329,6 @@ export default function PedidosPage() {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
-            {/* BOTÃO DO SOM */}
-
             <button
               onClick={() => {
                 if (somAtivado) {
@@ -426,8 +354,6 @@ export default function PedidosPage() {
           </div>
         </div>
 
-        {/* AVISO DO SOM */}
-
         {!somAtivado && (
           <div className="mb-6 rounded-xl border border-orange-200 bg-orange-50 p-4">
             <p className="text-sm font-semibold text-orange-800">
@@ -435,8 +361,6 @@ export default function PedidosPage() {
             </p>
           </div>
         )}
-
-        {/* CONTADORES */}
 
         <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <button
@@ -479,8 +403,6 @@ export default function PedidosPage() {
           </button>
         </div>
 
-        {/* TÍTULO */}
-
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">{filtro}</h2>
 
@@ -488,8 +410,6 @@ export default function PedidosPage() {
             {pedidosFiltrados.length} {pedidosFiltrados.length === 1 ? 'pedido' : 'pedidos'}
           </span>
         </div>
-
-        {/* LISTA */}
 
         {pedidosFiltrados.length === 0 ? (
           <div className="rounded-xl bg-white p-10 text-center shadow-sm">
@@ -511,23 +431,8 @@ export default function PedidosPage() {
                 <button
                   key={pedido.id}
                   onClick={() => setPedidoSelecionado(pedido)}
-                  className="
-                      group
-                      rounded-xl
-                      border
-                      border-gray-200
-                      bg-white
-                      p-5
-                      text-left
-                      shadow-sm
-                      transition
-                      hover:-translate-y-1
-                      hover:border-gray-300
-                      hover:shadow-lg
-                    "
+                  className="group rounded-xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-1 hover:border-gray-300 hover:shadow-lg"
                 >
-                  {/* TOPO */}
-
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-medium uppercase text-gray-400">Pedido</p>
@@ -539,8 +444,6 @@ export default function PedidosPage() {
                       {status.emoji} {status.texto}
                     </span>
                   </div>
-
-                  {/* INFORMAÇÕES */}
 
                   <div className="space-y-2 text-sm text-gray-600">
                     <div className="flex justify-between gap-3">
@@ -566,8 +469,6 @@ export default function PedidosPage() {
                     </div>
                   </div>
 
-                  {/* TOTAL */}
-
                   <div className="mt-4 flex items-center justify-between border-t pt-4">
                     <span className="text-sm text-gray-500">Total</span>
 
@@ -575,8 +476,6 @@ export default function PedidosPage() {
                       R$ {Number(pedido.total || 0).toFixed(2)}
                     </span>
                   </div>
-
-                  {/* DATA */}
 
                   <p className="mt-3 text-xs text-gray-400">{formatarData(pedido.criadoEm)}</p>
 
@@ -590,8 +489,6 @@ export default function PedidosPage() {
         )}
       </div>
 
-      {/* MODAL */}
-
       {pedidoSelecionado && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
@@ -601,8 +498,6 @@ export default function PedidosPage() {
             className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* CABEÇALHO */}
-
             <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white p-5">
               <div>
                 <p className="text-xs font-medium uppercase text-gray-400">Pedido</p>
@@ -619,8 +514,6 @@ export default function PedidosPage() {
             </div>
 
             <div className="space-y-6 p-5">
-              {/* STATUS */}
-
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm text-gray-500">Status atual</p>
@@ -647,8 +540,6 @@ export default function PedidosPage() {
                 </div>
               </div>
 
-              {/* ITENS */}
-
               <section>
                 <h3 className="mb-3 text-lg font-bold">🛒 Itens do pedido</h3>
 
@@ -671,8 +562,6 @@ export default function PedidosPage() {
                         </p>
                       </div>
 
-                      {/* MISTURAS */}
-
                       {Array.isArray(item.misturas) && item.misturas.length > 0 && (
                         <div className="mt-3">
                           <p className="text-sm font-semibold">Misturas</p>
@@ -686,8 +575,6 @@ export default function PedidosPage() {
                           </ul>
                         </div>
                       )}
-
-                      {/* ACOMPANHAMENTOS */}
 
                       {Array.isArray(item.acompanhamentos) && item.acompanhamentos.length > 0 && (
                         <div className="mt-3">
@@ -703,8 +590,6 @@ export default function PedidosPage() {
                         </div>
                       )}
 
-                      {/* OBSERVAÇÃO */}
-
                       {item.observacao && (
                         <div className="mt-3 rounded-lg bg-white p-3 text-sm text-gray-700">
                           <strong>Observação:</strong> {item.observacao}
@@ -714,8 +599,6 @@ export default function PedidosPage() {
                   ))}
                 </div>
               </section>
-
-              {/* PAGAMENTO */}
 
               <section>
                 <h3 className="mb-3 text-lg font-bold">💳 Pagamento</h3>
@@ -740,8 +623,6 @@ export default function PedidosPage() {
                   )}
                 </div>
               </section>
-
-              {/* ENTREGA */}
 
               <section>
                 <h3 className="mb-3 text-lg font-bold">📍 Entrega</h3>
@@ -777,8 +658,6 @@ export default function PedidosPage() {
                 </div>
               </section>
 
-              {/* RESUMO */}
-
               <section>
                 <h3 className="mb-3 text-lg font-bold">💰 Resumo</h3>
 
@@ -804,8 +683,6 @@ export default function PedidosPage() {
                   </div>
                 </div>
               </section>
-
-              {/* ALTERAR STATUS */}
 
               <section className="border-t pt-5">
                 <h3 className="mb-3 text-lg font-bold">Alterar status</h3>

@@ -326,6 +326,7 @@ export default function ProdutosPage() {
               <option>Marmitex</option>
               <option>Bebidas</option>
               <option>Sucos</option>
+              <option>Salgados</option>
             </select>
 
             <input
@@ -415,6 +416,7 @@ export default function ProdutosPage() {
                 <option>Marmitex</option>
                 <option>Bebidas</option>
                 <option>Sucos</option>
+                <option>Salgados</option>
               </select>
 
               <input
