@@ -15,7 +15,7 @@ export function enviarWhatsapp({
   tipoPagamento: string;
   troco?: string;
 }) {
-  const numero = '5519994483147';
+  const numero = '5519995498950';
 
   let dadosEntrega = '';
 

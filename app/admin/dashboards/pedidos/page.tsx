@@ -66,6 +66,7 @@ export default function PedidosPage() {
       setSomAtivado(true);
 
       const oscillator = audioContextRef.current.createOscillator();
+
       const gain = audioContextRef.current.createGain();
 
       oscillator.connect(gain);
@@ -106,6 +107,7 @@ export default function PedidosPage() {
       }
 
       const oscillator = audioContext.createOscillator();
+
       const gain = audioContext.createGain();
 
       oscillator.connect(gain);
@@ -116,7 +118,9 @@ export default function PedidosPage() {
       const agora = audioContext.currentTime;
 
       oscillator.frequency.setValueAtTime(880, agora);
+
       oscillator.frequency.setValueAtTime(1174, agora + 0.15);
+
       oscillator.frequency.setValueAtTime(880, agora + 0.3);
 
       gain.gain.setValueAtTime(0.0001, agora);
@@ -134,6 +138,7 @@ export default function PedidosPage() {
       gain.gain.exponentialRampToValueAtTime(0.0001, agora + 0.7);
 
       oscillator.start(agora);
+
       oscillator.stop(agora + 0.7);
     } catch (error) {
       console.error('Erro ao tocar som:', error);
@@ -149,8 +154,10 @@ export default function PedidosPage() {
 
       if (user.email !== 'admin@gmail.com') {
         setErro('Você não possui permissão para acessar os pedidos.');
+
         setAutorizado(false);
         setCarregando(false);
+
         return;
       }
 
@@ -170,6 +177,7 @@ export default function PedidosPage() {
     const pedidosQuery = query(pedidosRef, orderBy('criadoEm', 'desc'));
 
     const pedidosConhecidos = new Set<string>();
+
     let primeiraCarga = true;
 
     const unsubscribe = onSnapshot(
@@ -190,6 +198,7 @@ export default function PedidosPage() {
           snapshot.docChanges().forEach((change) => {
             if (change.type === 'added' && !pedidosConhecidos.has(change.doc.id)) {
               pedidosConhecidos.add(change.doc.id);
+
               tocarSomNovoPedido();
             }
           });
@@ -200,7 +209,9 @@ export default function PedidosPage() {
       },
       (error) => {
         console.error('Erro ao carregar pedidos:', error);
+
         setErro('Não foi possível carregar os pedidos.');
+
         setCarregando(false);
       }
     );
@@ -226,6 +237,7 @@ export default function PedidosPage() {
       });
     } catch (error) {
       console.error('Erro ao alterar status:', error);
+
       alert('Não foi possível alterar o status do pedido.');
     }
   }
@@ -248,6 +260,498 @@ export default function PedidosPage() {
     } catch {
       return 'Data não disponível';
     }
+  }
+
+  function formatarValor(valor: any) {
+    return Number(valor || 0).toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  function escaparHtml(valor: any) {
+    return String(valor ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function imprimirNotinha(pedido: Pedido) {
+    const janela = window.open('', '_blank', 'width=400,height=700');
+
+    if (!janela) {
+      alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este site.');
+
+      return;
+    }
+
+    const itens = Array.isArray(pedido.cart) ? pedido.cart : [];
+
+    const itensHtml = itens
+      .map((item: any, index: number) => {
+        const quantidade = Number(item.quantity || 1);
+
+        const nome = item.title || item.nome || 'Produto';
+
+        const preco = Number(item.price || 0) * quantidade;
+
+        let detalhes = '';
+
+        if (Array.isArray(item.misturas) && item.misturas.length > 0) {
+          detalhes += `
+                <div class="subitem">
+                  <strong>Misturas:</strong>
+                  ${item.misturas
+                    .map((mistura: any) =>
+                      escaparHtml(mistura.nome || mistura.name || mistura.id || 'Mistura')
+                    )
+                    .join(', ')}
+                </div>
+              `;
+        }
+
+        if (Array.isArray(item.acompanhamentos) && item.acompanhamentos.length > 0) {
+          detalhes += `
+                <div class="subitem">
+                  <strong>Acompanhamentos:</strong>
+                  ${item.acompanhamentos
+                    .map((acompanhamento: any) =>
+                      escaparHtml(
+                        acompanhamento.nome ||
+                          acompanhamento.name ||
+                          acompanhamento.id ||
+                          'Acompanhamento'
+                      )
+                    )
+                    .join(', ')}
+                </div>
+              `;
+        }
+
+        if (item.observacao) {
+          detalhes += `
+                <div class="subitem">
+                  <strong>Obs:</strong>
+                  ${escaparHtml(item.observacao)}
+                </div>
+              `;
+        }
+
+        return `
+              <div class="item">
+
+                <div class="item-principal">
+                  <span>
+                    ${quantidade}x
+                    ${escaparHtml(nome)}
+                  </span>
+
+                  <span>
+                    R$ ${formatarValor(preco)}
+                  </span>
+                </div>
+
+                ${detalhes}
+
+              </div>
+            `;
+      })
+      .join('');
+
+    const entrega = pedido.entrega;
+
+    let entregaHtml = '';
+
+    if (entrega?.tipo === 'Entrega') {
+      entregaHtml = `
+        <div class="secao">
+
+          <div class="titulo-secao">
+            ENTREGA
+          </div>
+
+          ${
+            entrega.nome
+              ? `
+                <div>
+                  <strong>Cliente:</strong>
+                  ${escaparHtml(entrega.nome)}
+                </div>
+              `
+              : ''
+          }
+
+          <div>
+            ${escaparHtml(entrega.rua)}, ${escaparHtml(entrega.numero)}
+          </div>
+
+          ${
+            entrega.complemento
+              ? `
+                <div>
+                  ${escaparHtml(entrega.complemento)}
+                </div>
+              `
+              : ''
+          }
+
+          <div>
+            ${escaparHtml(entrega.bairro)}
+          </div>
+
+          ${
+            entrega.referencia
+              ? `
+                <div>
+                  <strong>Referência:</strong>
+                  ${escaparHtml(entrega.referencia)}
+                </div>
+              `
+              : ''
+          }
+
+        </div>
+      `;
+    } else {
+      entregaHtml = `
+        <div class="secao">
+
+          <div class="titulo-secao">
+            RETIRADA
+          </div>
+
+          ${
+            entrega?.nome
+              ? `
+                <div>
+                  <strong>Cliente:</strong>
+                  ${escaparHtml(entrega.nome)}
+                </div>
+              `
+              : ''
+          }
+
+        </div>
+      `;
+    }
+
+    let trocoHtml = '';
+
+    if (
+      pedido.tipoPagamento === 'Dinheiro' &&
+      pedido.troco !== null &&
+      pedido.troco !== undefined &&
+      pedido.troco !== ''
+    ) {
+      trocoHtml = `
+        <div class="linha">
+          <span>Troco para:</span>
+
+          <strong>
+            R$ ${formatarValor(pedido.troco)}
+          </strong>
+        </div>
+      `;
+    }
+
+    const numeroPedido = pedido.id.slice(-6);
+
+    janela.document.write(`
+      <!DOCTYPE html>
+
+      <html lang="pt-BR">
+
+      <head>
+
+        <meta charset="UTF-8">
+
+        <title>
+          Pedido #${numeroPedido}
+        </title>
+
+        <style>
+
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+
+          * {
+            box-sizing: border-box;
+          }
+
+          html,
+          body {
+            width: 80mm;
+            margin: 0;
+            padding: 0;
+            background: white;
+          }
+
+          body {
+            font-family:
+              Arial,
+              Helvetica,
+              sans-serif;
+
+            color: #000;
+
+            font-size: 12px;
+
+            line-height: 1.35;
+
+            padding: 4mm;
+          }
+
+          .nota {
+            width: 100%;
+          }
+
+          .centralizado {
+            text-align: center;
+          }
+
+          .empresa {
+            font-size: 20px;
+            font-weight: 900;
+          }
+
+          .subtitulo {
+            font-size: 11px;
+            margin-top: 2px;
+          }
+
+          .pedido {
+            font-size: 17px;
+            font-weight: 900;
+            margin-top: 8px;
+          }
+
+          .data {
+            font-size: 10px;
+            margin-top: 3px;
+          }
+
+          .separador {
+            border-top: 1px dashed #000;
+            margin: 8px 0;
+          }
+
+          .secao {
+            margin: 8px 0;
+          }
+
+          .titulo-secao {
+            font-size: 13px;
+            font-weight: 900;
+            border-bottom: 1px solid #000;
+            padding-bottom: 2px;
+            margin-bottom: 5px;
+          }
+
+          .item {
+            margin-bottom: 8px;
+          }
+
+          .item-principal {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            font-weight: 700;
+          }
+
+          .item-principal span:first-child {
+            flex: 1;
+            word-break: break-word;
+          }
+
+          .item-principal span:last-child {
+            white-space: nowrap;
+          }
+
+          .subitem {
+            margin-left: 8px;
+            margin-top: 2px;
+            font-size: 10px;
+            word-break: break-word;
+          }
+
+          .linha {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin: 3px 0;
+          }
+
+          .total {
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;
+            font-weight: 900;
+            margin-top: 5px;
+          }
+
+          .pagamento {
+            font-weight: 700;
+          }
+
+          .status {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 900;
+            margin-top: 8px;
+          }
+
+          .rodape {
+            text-align: center;
+            font-size: 10px;
+            margin-top: 12px;
+          }
+
+        </style>
+
+      </head>
+
+      <body>
+
+        <div class="nota">
+
+          <div class="centralizado">
+
+            <div class="empresa">
+              REI DO SUCO
+            </div>
+
+            <div class="subtitulo">
+              MARMITARIA
+            </div>
+
+            <div class="pedido">
+              PEDIDO #${numeroPedido}
+            </div>
+
+            <div class="data">
+              ${escaparHtml(formatarData(pedido.criadoEm))}
+            </div>
+
+          </div>
+
+          <div class="separador"></div>
+
+          <div class="secao">
+
+            <div class="titulo-secao">
+              ITENS
+            </div>
+
+            ${itensHtml || '<div>Nenhum item</div>'}
+
+          </div>
+
+          <div class="separador"></div>
+
+          ${entregaHtml}
+
+          <div class="separador"></div>
+
+          <div class="secao">
+
+            <div class="titulo-secao">
+              PAGAMENTO
+            </div>
+
+            <div class="pagamento">
+              ${escaparHtml(pedido.tipoPagamento || 'Não informado')}
+            </div>
+
+            ${trocoHtml}
+
+          </div>
+
+          <div class="separador"></div>
+
+          <div class="secao">
+
+            <div class="titulo-secao">
+              RESUMO
+            </div>
+
+            <div class="linha">
+              <span>
+                Subtotal:
+              </span>
+
+              <span>
+                R$ ${formatarValor(pedido.subtotal)}
+              </span>
+            </div>
+
+            <div class="linha">
+              <span>
+                Taxa de entrega:
+              </span>
+
+              <span>
+                R$ ${formatarValor(pedido.taxaEntrega)}
+              </span>
+            </div>
+
+            <div class="separador"></div>
+
+            <div class="total">
+
+              <span>
+                TOTAL
+              </span>
+
+              <span>
+                R$ ${formatarValor(pedido.total)}
+              </span>
+
+            </div>
+
+          </div>
+
+          <div class="separador"></div>
+
+          <div class="status">
+            ${escaparHtml(pedido.status || 'Processando').toUpperCase()}
+          </div>
+
+          <div class="rodape">
+            Obrigado pela preferência!
+            <br />
+            REI DO SUCO
+          </div>
+
+        </div>
+
+        <script>
+
+          window.onload = function() {
+
+            setTimeout(function() {
+
+              window.print();
+
+              setTimeout(function() {
+                window.close();
+              }, 700);
+
+            }, 300);
+
+          };
+
+        </script>
+
+      </body>
+
+      </html>
+    `);
+
+    janela.document.close();
   }
 
   const pedidosFiltrados = pedidos.filter((pedido) => (pedido.status || 'Processando') === filtro);
@@ -506,6 +1010,7 @@ export default function PedidosPage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => setPedidoSelecionado(null)}
                 className="rounded-full bg-gray-100 px-4 py-2 text-xl text-gray-600 hover:bg-gray-200"
               >
@@ -684,11 +1189,34 @@ export default function PedidosPage() {
                 </div>
               </section>
 
+              {/* IMPRESSÃO */}
+
+              <section className="border-t pt-5">
+                <h3 className="mb-3 text-lg font-bold">🖨️ Imprimir pedido</h3>
+
+                <button
+                  type="button"
+                  onClick={() => imprimirNotinha(pedidoSelecionado)}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-4 text-lg font-bold text-white shadow-md transition hover:bg-blue-700 active:scale-[0.98]"
+                >
+                  🖨️ Imprimir notinha
+                </button>
+
+                <p className="mt-2 text-center text-xs text-gray-500">
+                  Papel térmico de 80 mm
+                  <br />
+                  Tanca TP-650
+                </p>
+              </section>
+
+              {/* STATUS */}
+
               <section className="border-t pt-5">
                 <h3 className="mb-3 text-lg font-bold">Alterar status</h3>
 
                 <div className="grid gap-3 sm:grid-cols-3">
                   <button
+                    type="button"
                     onClick={() => alterarStatus(pedidoSelecionado.id, 'Processando')}
                     className="rounded-lg bg-yellow-500 px-4 py-3 font-semibold text-white hover:bg-yellow-600"
                   >
@@ -696,6 +1224,7 @@ export default function PedidosPage() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => alterarStatus(pedidoSelecionado.id, 'Pronto')}
                     className="rounded-lg bg-green-600 px-4 py-3 font-semibold text-white hover:bg-green-700"
                   >
@@ -703,6 +1232,7 @@ export default function PedidosPage() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => {
                       const confirmar = window.confirm(
                         'Tem certeza que deseja cancelar este pedido?'

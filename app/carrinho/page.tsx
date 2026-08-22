@@ -55,6 +55,10 @@ export default function CartPage() {
 
   const total = subtotal;
 
+  const valorMinimo = 15;
+
+  const podeFinalizar = cart.length > 0 && subtotal >= valorMinimo;
+
   return (
     <main className="min-h-screen bg-gray-100 py-8 sm:py-10">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -89,7 +93,6 @@ export default function CartPage() {
 
                     {item.subtitle && <p className="text-gray-500">{item.subtitle}</p>}
 
-                    {/* Misturas */}
                     {item.misturas && (
                       <div className="mt-4">
                         <p className="font-semibold">Misturas:</p>
@@ -98,6 +101,7 @@ export default function CartPage() {
                           {item.misturas.map((mistura: any, index: number) => (
                             <li key={index}>
                               {mistura.nome}
+
                               {mistura.acrescimo > 0 && ` (+R$ ${mistura.acrescimo.toFixed(2)})`}
                             </li>
                           ))}
@@ -105,7 +109,6 @@ export default function CartPage() {
                       </div>
                     )}
 
-                    {/* Acompanhamentos */}
                     {item.acompanhamentos && (
                       <div className="mt-4">
                         <p className="font-semibold">Acompanhamentos:</p>
@@ -177,12 +180,24 @@ export default function CartPage() {
                 </div>
               </div>
 
+              {!podeFinalizar && cart.length > 0 && (
+                <div className="mt-5 rounded-lg bg-yellow-100 p-4 text-center text-sm font-semibold text-yellow-800">
+                  O valor mínimo para finalizar o pedido é R$ 15,00.
+                  <br />
+                  Faltam R$ {(valorMinimo - subtotal).toFixed(2)}.
+                </div>
+              )}
+
               <button
-                disabled={cart.length === 0}
+                disabled={!podeFinalizar}
                 onClick={() => router.push('/entrega')}
-                className="mt-8 w-full rounded-lg bg-green-600 py-4 text-xl font-bold text-white hover:bg-green-700 disabled:bg-gray-400"
+                className="mt-8 w-full rounded-lg bg-green-600 py-4 text-xl font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400"
               >
-                Continuar
+                {cart.length === 0
+                  ? 'Carrinho vazio'
+                  : subtotal < valorMinimo
+                    ? 'Mínimo R$ 15,00'
+                    : 'Continuar'}
               </button>
             </div>
           </div>
