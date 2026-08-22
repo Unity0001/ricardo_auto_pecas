@@ -325,6 +325,8 @@ export default function ProdutosPage() {
               <option>Combos</option>
               <option>Marmitex</option>
               <option>Bebidas</option>
+              <option>Lanches Naturais</option>
+              <option>Panquecas</option>
               <option>Sucos</option>
               <option>Salgados</option>
             </select>
