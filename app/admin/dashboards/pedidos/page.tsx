@@ -153,7 +153,6 @@ export default function PedidosPage() {
         oscillator.stop(fimNota + 0.1);
       };
 
-      // 🔔 DING
       tocarNota(1047, 0, 2.0, 2.5);
 
       // 🔔 DONG
