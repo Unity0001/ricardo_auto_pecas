@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+
 import { MercadoPagoConfig, Payment } from 'mercadopago';
-import { collection, getDocs, query, where, doc, setDoc } from 'firebase/firestore';
+
+import { collection, getDocs, query, where, doc, setDoc, updateDoc } from 'firebase/firestore';
+
 import { db } from '@/app/lib/firebase';
 
 const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
@@ -46,6 +49,8 @@ export async function GET(req: NextRequest) {
 
     if (!pedidosPagamentoSnapshot.empty) {
       pedidoId = pedidosPagamentoSnapshot.docs[0].id;
+
+      console.log('Pedido já existente pelo pagamentoId:', pedidoId);
     }
 
     if (!pedidoId && pagamento.external_reference) {
@@ -58,6 +63,8 @@ export async function GET(req: NextRequest) {
 
       if (!pedidosReferenciaSnapshot.empty) {
         pedidoId = pedidosReferenciaSnapshot.docs[0].id;
+
+        console.log('Pedido já existente pelo externalReference:', pedidoId);
       }
     }
 
@@ -66,37 +73,74 @@ export async function GET(req: NextRequest) {
 
       const referencia = pagamento.external_reference;
 
-      if (referencia) {
+      if (!referencia) {
+        console.error('Pagamento aprovado sem external_reference.');
+      } else {
         const prePedidoSnapshot = await getDocs(
           query(collection(db, 'pedidos_pix'), where('referencia', '==', referencia))
         );
 
-        if (!prePedidoSnapshot.empty) {
+        if (prePedidoSnapshot.empty) {
+          console.error('Pré-pedido não encontrado:', referencia);
+        } else {
           const prePedidoDoc = prePedidoSnapshot.docs[0];
+
           const prePedido = prePedidoDoc.data();
 
-          if (!prePedido.processado) {
-            pedidoId = doc(collection(db, 'pedidos')).id;
+          if (prePedido.processado === true) {
+            pedidoId = prePedido.pedidoId || null;
 
-            await setDoc(doc(db, 'pedidos', pedidoId), {
+            console.log('Pré-pedido já processado:', pedidoId);
+          } else {
+            const novoPedidoRef = doc(collection(db, 'pedidos'));
+
+            pedidoId = novoPedidoRef.id;
+
+            await setDoc(novoPedidoRef, {
               cart: prePedido.cart || [],
+
               entrega: prePedido.entrega || {},
+
               subtotal: Number(prePedido.subtotal || 0),
+
               taxaEntrega: Number(prePedido.taxaEntrega || 0),
+
               total: Number(prePedido.total || 0),
+
               tipoPagamento: 'PIX',
+
               troco: null,
+
               status: 'Processando',
+
               pagamentoId: String(pagamento.id),
+
               pagamentoStatus: pagamento.status,
+
+              pagamentoStatusDetail: pagamento.status_detail || null,
+
               externalReference: referencia,
+
               criadoEm: new Date(),
+
               pagoEm: new Date(),
             });
 
-            console.log('Pedido criado:', pedidoId);
-          } else {
-            pedidoId = prePedido.pedidoId || null;
+            console.log('Pedido criado com sucesso:', pedidoId);
+
+            await updateDoc(doc(db, 'pedidos_pix', prePedidoDoc.id), {
+              processado: true,
+
+              pedidoId: pedidoId,
+
+              pagamentoId: String(pagamento.id),
+
+              pagamentoStatus: pagamento.status,
+
+              processadoEm: new Date(),
+            });
+
+            console.log('Pré-pedido marcado como processado.');
           }
         }
       }
@@ -106,10 +150,15 @@ export async function GET(req: NextRequest) {
 
     console.log({
       id: pagamento.id,
+
       status: pagamento.status,
+
       status_detail: pagamento.status_detail,
+
       transaction_amount: pagamento.transaction_amount,
+
       external_reference: pagamento.external_reference,
+
       pedidoId,
     });
 
@@ -117,10 +166,15 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       id: pagamento.id,
+
       status: pagamento.status || 'pending',
+
       status_detail: pagamento.status_detail || null,
+
       transaction_amount: pagamento.transaction_amount || 0,
+
       external_reference: pagamento.external_reference || null,
+
       pedidoId,
     });
   } catch (error: any) {
@@ -133,6 +187,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         error: 'Erro ao consultar pagamento',
+
         details: error?.message || 'Erro desconhecido',
       },
       {

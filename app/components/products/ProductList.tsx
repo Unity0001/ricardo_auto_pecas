@@ -117,11 +117,11 @@ export default function ProductList() {
   const categories = [
     'Marmitex',
     'Bebidas',
+    'Salgados',
     'Sucos',
     'Panquecas',
     'Lanches Naturais',
     'Sobremesas',
-    'Salgados',
   ];
 
   const filteredProducts = products.filter((product) => {

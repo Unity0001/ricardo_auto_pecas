@@ -27,6 +27,7 @@ interface Pedido {
   pagamentoId?: string;
   pagamentoStatus?: string;
   pagamentoStatusDetail?: string;
+  externalReference?: string;
   criadoEm?: any;
   pagoEm?: any;
 }
@@ -59,32 +60,41 @@ export default function PedidosPage() {
         audioContextRef.current = new AudioContextClass();
       }
 
-      if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume();
+      const contexto = audioContextRef.current;
+
+      if (!contexto) {
+        return;
+      }
+
+      if (contexto.state === 'suspended') {
+        contexto.resume();
       }
 
       setSomAtivado(true);
 
-      const oscillator = audioContextRef.current.createOscillator();
-
-      const gain = audioContextRef.current.createGain();
+      const oscillator = contexto.createOscillator();
+      const gain = contexto.createGain();
 
       oscillator.connect(gain);
-      gain.connect(audioContextRef.current.destination);
+      gain.connect(contexto.destination);
 
-      oscillator.type = 'sine';
+      oscillator.type = 'triangle';
 
-      oscillator.frequency.setValueAtTime(700, audioContextRef.current.currentTime);
+      const agora = contexto.currentTime;
 
-      gain.gain.setValueAtTime(0.0001, audioContextRef.current.currentTime);
+      oscillator.frequency.setValueAtTime(750, agora);
 
-      gain.gain.exponentialRampToValueAtTime(0.2, audioContextRef.current.currentTime + 0.02);
+      gain.gain.setValueAtTime(0.0001, agora);
 
-      gain.gain.exponentialRampToValueAtTime(0.0001, audioContextRef.current.currentTime + 0.15);
+      gain.gain.exponentialRampToValueAtTime(1.5, agora + 0.05);
 
-      oscillator.start();
+      gain.gain.exponentialRampToValueAtTime(0.8, agora + 0.8);
 
-      oscillator.stop(audioContextRef.current.currentTime + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.0001, agora + 2.5);
+
+      oscillator.start(agora);
+
+      oscillator.stop(agora + 2.5);
     } catch (error) {
       console.error('Erro ao ativar som:', error);
     }
@@ -96,50 +106,64 @@ export default function PedidosPage() {
     }
 
     try {
-      const audioContext = audioContextRef.current;
-
-      if (!audioContext) {
+      if (!audioContextRef.current) {
         return;
       }
 
-      if (audioContext.state === 'suspended') {
-        audioContext.resume();
+      const contexto = audioContextRef.current;
+
+      if (!contexto) {
+        return;
       }
 
-      const oscillator = audioContext.createOscillator();
+      if (contexto.state === 'suspended') {
+        contexto.resume();
+      }
 
-      const gain = audioContext.createGain();
+      const agora = contexto.currentTime;
 
-      oscillator.connect(gain);
-      gain.connect(audioContext.destination);
+      const tocarNota = (frequencia: number, inicio: number, duracao: number, volume: number) => {
+        const inicioNota = agora + inicio;
+        const fimNota = inicioNota + duracao;
 
-      oscillator.type = 'sine';
+        const oscillator = contexto.createOscillator();
 
-      const agora = audioContext.currentTime;
+        const gain = contexto.createGain();
 
-      oscillator.frequency.setValueAtTime(880, agora);
+        oscillator.connect(gain);
+        gain.connect(contexto.destination);
 
-      oscillator.frequency.setValueAtTime(1174, agora + 0.15);
+        oscillator.type = 'triangle';
 
-      oscillator.frequency.setValueAtTime(880, agora + 0.3);
+        oscillator.frequency.setValueAtTime(frequencia, inicioNota);
 
-      gain.gain.setValueAtTime(0.0001, agora);
+        gain.gain.setValueAtTime(0.0001, inicioNota);
 
-      gain.gain.exponentialRampToValueAtTime(0.5, agora + 0.03);
+        gain.gain.exponentialRampToValueAtTime(volume, inicioNota + 0.05);
 
-      gain.gain.exponentialRampToValueAtTime(0.0001, agora + 0.15);
+        gain.gain.exponentialRampToValueAtTime(
+          Math.max(volume * 0.7, 0.0001),
+          inicioNota + duracao * 0.5
+        );
 
-      gain.gain.exponentialRampToValueAtTime(0.5, agora + 0.18);
+        gain.gain.exponentialRampToValueAtTime(0.0001, fimNota);
 
-      gain.gain.exponentialRampToValueAtTime(0.0001, agora + 0.3);
+        oscillator.start(inicioNota);
 
-      gain.gain.exponentialRampToValueAtTime(0.5, agora + 0.33);
+        oscillator.stop(fimNota + 0.1);
+      };
 
-      gain.gain.exponentialRampToValueAtTime(0.0001, agora + 0.7);
+      // 🔔 DING
+      tocarNota(1047, 0, 2.0, 2.5);
 
-      oscillator.start(agora);
+      // 🔔 DONG
+      tocarNota(784, 0.55, 2.3, 2.5);
 
-      oscillator.stop(agora + 0.7);
+      // 🔔 DING
+      tocarNota(1047, 1.3, 2.0, 2.3);
+
+      // 🔔 DONG
+      tocarNota(659, 1.9, 2.2, 2.3);
     } catch (error) {
       console.error('Erro ao tocar som:', error);
     }
@@ -154,10 +178,8 @@ export default function PedidosPage() {
 
       if (user.email !== 'admin@gmail.com') {
         setErro('Você não possui permissão para acessar os pedidos.');
-
         setAutorizado(false);
         setCarregando(false);
-
         return;
       }
 
@@ -301,62 +323,60 @@ export default function PedidosPage() {
 
         if (Array.isArray(item.misturas) && item.misturas.length > 0) {
           detalhes += `
-                <div class="subitem">
-                  <strong>Misturas:</strong>
-                  ${item.misturas
-                    .map((mistura: any) =>
-                      escaparHtml(mistura.nome || mistura.name || mistura.id || 'Mistura')
-                    )
-                    .join(', ')}
-                </div>
-              `;
+              <div class="subitem">
+                <strong>Misturas:</strong>
+                ${item.misturas
+                  .map((mistura: any) =>
+                    escaparHtml(mistura.nome || mistura.name || mistura.id || 'Mistura')
+                  )
+                  .join(', ')}
+              </div>
+            `;
         }
 
         if (Array.isArray(item.acompanhamentos) && item.acompanhamentos.length > 0) {
           detalhes += `
-                <div class="subitem">
-                  <strong>Acompanhamentos:</strong>
-                  ${item.acompanhamentos
-                    .map((acompanhamento: any) =>
-                      escaparHtml(
-                        acompanhamento.nome ||
-                          acompanhamento.name ||
-                          acompanhamento.id ||
-                          'Acompanhamento'
-                      )
+              <div class="subitem">
+                <strong>Acompanhamentos:</strong>
+                ${item.acompanhamentos
+                  .map((acompanhamento: any) =>
+                    escaparHtml(
+                      acompanhamento.nome ||
+                        acompanhamento.name ||
+                        acompanhamento.id ||
+                        'Acompanhamento'
                     )
-                    .join(', ')}
-                </div>
-              `;
+                  )
+                  .join(', ')}
+              </div>
+            `;
         }
 
         if (item.observacao) {
           detalhes += `
-                <div class="subitem">
-                  <strong>Obs:</strong>
-                  ${escaparHtml(item.observacao)}
-                </div>
-              `;
+              <div class="subitem">
+                <strong>Obs:</strong>
+                ${escaparHtml(item.observacao)}
+              </div>
+            `;
         }
 
         return `
-              <div class="item">
+            <div class="item">
+              <div class="item-principal">
+                <span>
+                  ${quantidade}x
+                  ${escaparHtml(nome)}
+                </span>
 
-                <div class="item-principal">
-                  <span>
-                    ${quantidade}x
-                    ${escaparHtml(nome)}
-                  </span>
-
-                  <span>
-                    R$ ${formatarValor(preco)}
-                  </span>
-                </div>
-
-                ${detalhes}
-
+                <span>
+                  R$ ${formatarValor(preco)}
+                </span>
               </div>
-            `;
+
+              ${detalhes}
+            </div>
+          `;
       })
       .join('');
 
@@ -367,7 +387,6 @@ export default function PedidosPage() {
     if (entrega?.tipo === 'Entrega') {
       entregaHtml = `
         <div class="secao">
-
           <div class="titulo-secao">
             ENTREGA
           </div>
@@ -411,13 +430,11 @@ export default function PedidosPage() {
               `
               : ''
           }
-
         </div>
       `;
     } else {
       entregaHtml = `
         <div class="secao">
-
           <div class="titulo-secao">
             RETIRADA
           </div>
@@ -432,7 +449,6 @@ export default function PedidosPage() {
               `
               : ''
           }
-
         </div>
       `;
     }
@@ -448,7 +464,6 @@ export default function PedidosPage() {
       trocoHtml = `
         <div class="linha">
           <span>Troco para:</span>
-
           <strong>
             R$ ${formatarValor(pedido.troco)}
           </strong>
@@ -464,7 +479,6 @@ export default function PedidosPage() {
       <html lang="pt-BR">
 
       <head>
-
         <meta charset="UTF-8">
 
         <title>
@@ -472,7 +486,6 @@ export default function PedidosPage() {
         </title>
 
         <style>
-
           @page {
             size: 80mm auto;
             margin: 0;
@@ -609,13 +622,10 @@ export default function PedidosPage() {
             font-size: 10px;
             margin-top: 12px;
           }
-
         </style>
-
       </head>
 
       <body>
-
         <div class="nota">
 
           <div class="centralizado">
@@ -701,7 +711,6 @@ export default function PedidosPage() {
             <div class="separador"></div>
 
             <div class="total">
-
               <span>
                 TOTAL
               </span>
@@ -709,7 +718,6 @@ export default function PedidosPage() {
               <span>
                 R$ ${formatarValor(pedido.total)}
               </span>
-
             </div>
 
           </div>
@@ -729,11 +737,8 @@ export default function PedidosPage() {
         </div>
 
         <script>
-
           window.onload = function() {
-
             setTimeout(function() {
-
               window.print();
 
               setTimeout(function() {
@@ -741,9 +746,7 @@ export default function PedidosPage() {
               }, 700);
 
             }, 300);
-
           };
-
         </script>
 
       </body>
@@ -1189,8 +1192,6 @@ export default function PedidosPage() {
                 </div>
               </section>
 
-              {/* IMPRESSÃO */}
-
               <section className="border-t pt-5">
                 <h3 className="mb-3 text-lg font-bold">🖨️ Imprimir pedido</h3>
 
@@ -1208,8 +1209,6 @@ export default function PedidosPage() {
                   Tanca TP-650
                 </p>
               </section>
-
-              {/* STATUS */}
 
               <section className="border-t pt-5">
                 <h3 className="mb-3 text-lg font-bold">Alterar status</h3>
