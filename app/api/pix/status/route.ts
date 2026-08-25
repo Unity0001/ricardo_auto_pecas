@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 
-import { collection, getDocs, query, where, doc, setDoc, updateDoc } from 'firebase/firestore';
-
-import { db } from '@/app/lib/firebase';
-
 const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
 
 if (!accessToken) {
@@ -33,137 +29,42 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    console.log('Consultando pagamento Mercado Pago:', id);
+    console.log('======================================');
 
+    console.log('CONSULTANDO PAGAMENTO PIX');
+
+    console.log('Pagamento ID:', id);
+
+    console.log('======================================');
+
+    /*
+     * Cria o serviço de pagamentos do Mercado Pago.
+     */
     const payment = new Payment(client);
 
+    /*
+     * Consulta o pagamento diretamente
+     * no Mercado Pago.
+     */
     const pagamento = await payment.get({
       id: String(id),
     });
 
-    let pedidoId: string | null = null;
-
-    const pedidosPagamentoSnapshot = await getDocs(
-      query(collection(db, 'pedidos'), where('pagamentoId', '==', String(id)))
-    );
-
-    if (!pedidosPagamentoSnapshot.empty) {
-      pedidoId = pedidosPagamentoSnapshot.docs[0].id;
-
-      console.log('Pedido já existente pelo pagamentoId:', pedidoId);
-    }
-
-    if (!pedidoId && pagamento.external_reference) {
-      const pedidosReferenciaSnapshot = await getDocs(
-        query(
-          collection(db, 'pedidos'),
-          where('externalReference', '==', pagamento.external_reference)
-        )
-      );
-
-      if (!pedidosReferenciaSnapshot.empty) {
-        pedidoId = pedidosReferenciaSnapshot.docs[0].id;
-
-        console.log('Pedido já existente pelo externalReference:', pedidoId);
-      }
-    }
-
-    if (pagamento.status === 'approved' && !pedidoId) {
-      console.log('Pagamento aprovado. Procurando pré-pedido...');
-
-      const referencia = pagamento.external_reference;
-
-      if (!referencia) {
-        console.error('Pagamento aprovado sem external_reference.');
-      } else {
-        const prePedidoSnapshot = await getDocs(
-          query(collection(db, 'pedidos_pix'), where('referencia', '==', referencia))
-        );
-
-        if (prePedidoSnapshot.empty) {
-          console.error('Pré-pedido não encontrado:', referencia);
-        } else {
-          const prePedidoDoc = prePedidoSnapshot.docs[0];
-
-          const prePedido = prePedidoDoc.data();
-
-          if (prePedido.processado === true) {
-            pedidoId = prePedido.pedidoId || null;
-
-            console.log('Pré-pedido já processado:', pedidoId);
-          } else {
-            const novoPedidoRef = doc(collection(db, 'pedidos'));
-
-            pedidoId = novoPedidoRef.id;
-
-            await setDoc(novoPedidoRef, {
-              cart: prePedido.cart || [],
-
-              entrega: prePedido.entrega || {},
-
-              subtotal: Number(prePedido.subtotal || 0),
-
-              taxaEntrega: Number(prePedido.taxaEntrega || 0),
-
-              total: Number(prePedido.total || 0),
-
-              tipoPagamento: 'PIX',
-
-              troco: null,
-
-              status: 'Processando',
-
-              pagamentoId: String(pagamento.id),
-
-              pagamentoStatus: pagamento.status,
-
-              pagamentoStatusDetail: pagamento.status_detail || null,
-
-              externalReference: referencia,
-
-              criadoEm: new Date(),
-
-              pagoEm: new Date(),
-            });
-
-            console.log('Pedido criado com sucesso:', pedidoId);
-
-            await updateDoc(doc(db, 'pedidos_pix', prePedidoDoc.id), {
-              processado: true,
-
-              pedidoId: pedidoId,
-
-              pagamentoId: String(pagamento.id),
-
-              pagamentoStatus: pagamento.status,
-
-              processadoEm: new Date(),
-            });
-
-            console.log('Pré-pedido marcado como processado.');
-          }
-        }
-      }
-    }
-
-    console.log('========== STATUS PIX ==========');
-
-    console.log({
+    console.log('Resposta Mercado Pago:', {
       id: pagamento.id,
-
       status: pagamento.status,
-
       status_detail: pagamento.status_detail,
-
       transaction_amount: pagamento.transaction_amount,
-
       external_reference: pagamento.external_reference,
-
-      pedidoId,
     });
 
-    console.log('================================');
-
+    /*
+     * Retorna somente as informações
+     * necessárias para o PixPage.
+     *
+     * A criação do pedido agora é feita
+     * pelo próprio PixPage usando addDoc().
+     */
     return NextResponse.json({
       id: pagamento.id,
 
@@ -175,10 +76,12 @@ export async function GET(req: NextRequest) {
 
       external_reference: pagamento.external_reference || null,
 
-      pedidoId,
+      approved: pagamento.status === 'approved',
     });
   } catch (error: any) {
-    console.error('========== ERRO STATUS PIX ==========');
+    console.error('======================================');
+
+    console.error('ERRO AO CONSULTAR STATUS DO PIX');
 
     console.error(error);
 
