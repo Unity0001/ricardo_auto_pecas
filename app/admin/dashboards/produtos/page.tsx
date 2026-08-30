@@ -3,469 +3,411 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc } from 'firebase/firestore';
-
 import { db } from '../../../lib/firebase';
 
 export default function ProdutosPage() {
   const router = useRouter();
+
   const [products, setProducts] = useState<any[]>([]);
-
-  const [misturas, setMisturas] = useState<any[]>([]);
-
-  const [acompanhamentos, setAcompanhamentos] = useState<any[]>([]);
+  const [categorias, setCategorias] = useState<any[]>([]);
 
   const [title, setTitle] = useState('');
-
   const [subtitle, setSubtitle] = useState('');
-
   const [description, setDescription] = useState('');
-
-  const [category, setCategory] = useState('Combos');
-
   const [price, setPrice] = useState('');
-
   const [image, setImage] = useState('');
-
-  const [maxMisturas, setMaxMisturas] = useState(0);
-
-  const [maxAcompanhamentos, setMaxAcompanhamentos] = useState(0);
+  const [category, setCategory] = useState('');
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
-
   const [editTitle, setEditTitle] = useState('');
-
   const [editSubtitle, setEditSubtitle] = useState('');
-
   const [editDescription, setEditDescription] = useState('');
-
+  const [editPrice, setEditPrice] = useState('');
+  const [editImage, setEditImage] = useState('');
   const [editCategory, setEditCategory] = useState('');
 
-  const [editPrice, setEditPrice] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const [editImage, setEditImage] = useState('');
-
-  const [editMaxMisturas, setEditMaxMisturas] = useState(0);
-
-  const [editMaxAcompanhamentos, setEditMaxAcompanhamentos] = useState(0);
-
-  const [produtoSelecionado, setProdutoSelecionado] = useState<any>(null);
-
-  const [misturasSelecionadas, setMisturasSelecionadas] = useState<string[]>([]);
-
-  const [acompanhamentosSelecionados, setAcompanhamentosSelecionados] = useState<string[]>([]);
   async function carregarProdutos() {
-    const snapshot = await getDocs(collection(db, 'products'));
+    try {
+      const snapshot = await getDocs(collection(db, 'products'));
 
-    const lista: any[] = [];
+      const lista: any[] = [];
 
-    snapshot.forEach((item) => {
-      lista.push({
-        id: item.id,
-
-        ...item.data(),
+      snapshot.forEach((item) => {
+        lista.push({
+          id: item.id,
+          ...item.data(),
+        });
       });
-    });
 
-    setProducts(lista);
+      lista.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'pt-BR'));
+
+      setProducts(lista);
+    } catch (error) {
+      console.error('Erro ao carregar produtos:', error);
+
+      alert('Erro ao carregar os produtos.');
+    }
   }
 
-  async function carregarMisturas() {
-    const snapshot = await getDocs(collection(db, 'misturas'));
+  async function carregarCategorias() {
+    try {
+      const snapshot = await getDocs(collection(db, 'categories'));
 
-    const lista: any[] = [];
+      const lista: any[] = [];
 
-    snapshot.forEach((item) => {
-      lista.push({
-        id: item.id,
-
-        ...item.data(),
+      snapshot.forEach((item) => {
+        lista.push({
+          id: item.id,
+          ...item.data(),
+        });
       });
-    });
 
-    setMisturas(lista);
-  }
+      lista.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
 
-  async function carregarAcompanhamentos() {
-    const snapshot = await getDocs(collection(db, 'acompanhamentos'));
-
-    const lista: any[] = [];
-
-    snapshot.forEach((item) => {
-      lista.push({
-        id: item.id,
-
-        ...item.data(),
-      });
-    });
-
-    setAcompanhamentos(lista);
+      setCategorias(lista);
+    } catch (error) {
+      console.error('Erro ao carregar categorias:', error);
+    }
   }
 
   useEffect(() => {
     carregarProdutos();
-
-    carregarMisturas();
-
-    carregarAcompanhamentos();
+    carregarCategorias();
   }, []);
 
   async function adicionarProduto() {
-    if (!title.trim() || !subtitle.trim() || !description.trim() || !price) {
-      alert('Preencha os campos obrigatórios');
-
+    if (!title.trim() || !description.trim() || !price) {
+      alert('Preencha os campos obrigatórios.');
       return;
     }
 
-    await addDoc(collection(db, 'products'), {
-      title,
+    if (!category) {
+      alert('Selecione uma categoria.');
+      return;
+    }
 
-      subtitle,
+    const valor = Number(price);
 
-      description,
+    if (isNaN(valor) || valor <= 0) {
+      alert('Digite um preço válido.');
+      return;
+    }
 
-      category,
+    try {
+      setLoading(true);
 
-      price: Number(price),
+      await addDoc(collection(db, 'products'), {
+        title: title.trim(),
+        subtitle: subtitle.trim(),
+        description: description.trim(),
+        category,
+        price: valor,
+        image: image.trim(),
+        ativo: true,
+      });
 
-      image: image.trim() || 'https://placehold.co/600x400?text=Sem+Imagem',
+      setTitle('');
+      setSubtitle('');
+      setDescription('');
+      setPrice('');
+      setImage('');
+      setCategory('');
 
-      maxMisturas,
+      await carregarProdutos();
 
-      maxAcompanhamentos,
+      alert('Produto adicionado com sucesso.');
+    } catch (error) {
+      console.error('Erro ao adicionar produto:', error);
 
-      misturas: [],
-
-      acompanhamentos: [],
-
-      ativo: true,
-    });
-
-    setTitle('');
-
-    setSubtitle('');
-
-    setDescription('');
-
-    setPrice('');
-
-    setImage('');
-
-    setMaxMisturas(0);
-
-    setMaxAcompanhamentos(0);
-
-    carregarProdutos();
+      alert('Erro ao adicionar o produto.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function excluirProduto(id: string) {
-    const confirmar = confirm('Deseja excluir esse produto?');
+    const confirmar = confirm('Deseja realmente excluir este produto?');
 
     if (!confirmar) return;
 
-    await deleteDoc(doc(db, 'products', id));
+    try {
+      setLoading(true);
 
-    carregarProdutos();
+      await deleteDoc(doc(db, 'products', id));
+
+      await carregarProdutos();
+
+      alert('Produto excluído.');
+    } catch (error) {
+      console.error('Erro ao excluir produto:', error);
+
+      alert('Erro ao excluir o produto.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function alternarAtivo(product: any) {
-    await updateDoc(doc(db, 'products', product.id), {
-      ativo: product.ativo !== true,
-    });
+    try {
+      await updateDoc(doc(db, 'products', product.id), {
+        ativo: product.ativo !== true,
+      });
 
-    carregarProdutos();
+      await carregarProdutos();
+    } catch (error) {
+      console.error('Erro ao alterar status:', error);
+
+      alert('Erro ao alterar o status do produto.');
+    }
   }
 
   function editarProduto(product: any) {
     setEditandoId(product.id);
+    setEditTitle(product.title || '');
+    setEditSubtitle(product.subtitle || '');
+    setEditDescription(product.description || '');
+    setEditPrice(String(product.price ?? ''));
+    setEditImage(product.image || '');
+    setEditCategory(product.category || '');
 
-    setEditTitle(product.title);
-
-    setEditSubtitle(product.subtitle);
-
-    setEditDescription(product.description);
-
-    setEditCategory(product.category);
-
-    setEditPrice(String(product.price));
-
-    setEditImage(product.image);
-
-    setEditMaxMisturas(product.maxMisturas || 0);
-
-    setEditMaxAcompanhamentos(product.maxAcompanhamentos || 0);
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
   }
 
   async function salvarEdicao() {
     if (!editandoId) return;
 
-    const dados: any = {
-      title: editTitle,
-      subtitle: editSubtitle,
-      description: editDescription,
-      category: editCategory,
-      price: Number(editPrice),
-      image: editImage,
-    };
-
-    if (editCategory === 'Marmitex') {
-      dados.maxMisturas = editMaxMisturas;
-      dados.maxAcompanhamentos = editMaxAcompanhamentos;
-    } else {
-      dados.maxMisturas = 0;
-      dados.maxAcompanhamentos = 0;
-      dados.misturas = [];
-      dados.acompanhamentos = [];
+    if (!editTitle.trim() || !editDescription.trim() || !editPrice) {
+      alert('Preencha os campos obrigatórios.');
+      return;
     }
 
-    await updateDoc(doc(db, 'products', editandoId), dados);
+    if (!editCategory) {
+      alert('Selecione uma categoria.');
+      return;
+    }
 
+    const valor = Number(editPrice);
+
+    if (isNaN(valor) || valor <= 0) {
+      alert('Digite um preço válido.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      await updateDoc(doc(db, 'products', editandoId), {
+        title: editTitle.trim(),
+        subtitle: editSubtitle.trim(),
+        description: editDescription.trim(),
+        category: editCategory,
+        price: valor,
+        image: editImage.trim(),
+      });
+
+      setEditandoId(null);
+      setEditTitle('');
+      setEditSubtitle('');
+      setEditDescription('');
+      setEditPrice('');
+      setEditImage('');
+      setEditCategory('');
+
+      await carregarProdutos();
+
+      alert('Produto atualizado com sucesso.');
+    } catch (error) {
+      console.error('Erro ao editar produto:', error);
+
+      alert('Erro ao atualizar o produto.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function cancelarEdicao() {
     setEditandoId(null);
-    carregarProdutos();
+    setEditTitle('');
+    setEditSubtitle('');
+    setEditDescription('');
+    setEditPrice('');
+    setEditImage('');
+    setEditCategory('');
   }
 
-  function abrirMisturas(product: any) {
-    setProdutoSelecionado(product);
-
-    setMisturasSelecionadas(product.misturas || []);
-
-    setAcompanhamentosSelecionados(product.acompanhamentos || []);
-  }
-
-  function toggleMistura(id: string) {
-    setMisturasSelecionadas((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((item) => item !== id);
-      }
-
-      return [...prev, id];
-    });
-  }
-
-  function toggleAcompanhamento(id: string) {
-    setAcompanhamentosSelecionados((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((item) => item !== id);
-      }
-
-      return [...prev, id];
-    });
-  }
-
-  async function salvarOpcoes() {
-    if (!produtoSelecionado) return;
-
-    await updateDoc(
-      doc(db, 'products', produtoSelecionado.id),
-
-      {
-        misturas: misturasSelecionadas,
-
-        acompanhamentos: acompanhamentosSelecionados,
-      }
-    );
-
-    setProdutoSelecionado(null);
-
-    carregarProdutos();
-  }
   return (
-    <main className="min-h-screen bg-gray-100 p-6">
+    <main className="min-h-screen bg-gray-100 p-4 sm:p-6">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-4xl font-bold">🍔 Produtos</h1>
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-3xl font-bold sm:text-4xl">Produtos</h1>
 
-          <button
-            onClick={() => router.push('/admin/dashboards')}
-            className="
-        rounded-lg
-        bg-gray-800
-        px-5
-        py-3
-        font-semibold
-        text-white
-        shadow
-        transition
-        hover:bg-gray-900
-      "
-          >
-            ← Voltar
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => router.push('/admin/categorias')}
+              className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+            >
+              Categorias
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push('/admin/dashboards')}
+              className="rounded-lg bg-gray-800 px-5 py-3 font-semibold text-white hover:bg-gray-900"
+            >
+              ← Voltar
+            </button>
+          </div>
         </div>
 
-        <div className="mb-10 rounded-xl bg-white p-6 shadow">
+        <div className="mb-10 rounded-xl bg-white p-5 shadow sm:p-6">
           <h2 className="mb-6 text-2xl font-bold">Novo Produto</h2>
 
           <div className="grid gap-4">
             <input
-              placeholder="Nome"
+              placeholder="Nome do produto"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="rounded border p-3"
+              className="rounded border p-3 outline-none focus:border-green-600"
             />
 
             <input
               placeholder="Subtítulo"
               value={subtitle}
               onChange={(e) => setSubtitle(e.target.value)}
-              className="rounded border p-3"
+              className="rounded border p-3 outline-none focus:border-green-600"
             />
 
             <textarea
               placeholder="Descrição"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="rounded border p-3"
+              className="min-h-28 rounded border p-3 outline-none focus:border-green-600"
             />
-
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="rounded border p-3"
-            >
-              <option>Combos</option>
-              <option>Marmitex</option>
-              <option>Bebidas</option>
-              <option>Lanches Naturais</option>
-              <option>Panquecas</option>
-              <option>Sucos</option>
-              <option>Salgados</option>
-            </select>
 
             <input
               type="number"
+              min="0"
+              step="0.01"
               placeholder="Preço"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              className="rounded border p-3"
+              className="rounded border p-3 outline-none focus:border-green-600"
             />
 
             <input
               placeholder="URL da imagem"
               value={image}
               onChange={(e) => setImage(e.target.value)}
-              className="rounded border p-3"
+              className="rounded border p-3 outline-none focus:border-green-600"
             />
 
-            {category === 'Marmitex' && (
-              <>
-                <input
-                  type="number"
-                  placeholder="Máximo de misturas"
-                  value={maxMisturas}
-                  onChange={(e) => setMaxMisturas(Number(e.target.value))}
-                  className="rounded border p-3"
-                />
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="rounded border bg-white p-3 outline-none focus:border-green-600"
+            >
+              <option value="">Selecione uma categoria</option>
 
-                <input
-                  type="number"
-                  placeholder="Máximo de acompanhamentos"
-                  value={maxAcompanhamentos}
-                  onChange={(e) => setMaxAcompanhamentos(Number(e.target.value))}
-                  className="rounded border p-3"
-                />
-              </>
+              {categorias.map((categoria) => (
+                <option key={categoria.id} value={categoria.nome}>
+                  {categoria.nome}
+                </option>
+              ))}
+            </select>
+
+            {categorias.length === 0 && (
+              <div className="rounded-lg bg-yellow-100 p-3 text-sm text-yellow-800">
+                Nenhuma categoria cadastrada. Crie uma categoria antes de cadastrar produtos.
+              </div>
             )}
 
             <button
+              type="button"
               onClick={adicionarProduto}
-              className="
-          rounded-lg
-          bg-green-600
-          p-3
-          font-bold
-          text-white
-          transition
-          hover:bg-green-700
-        "
+              disabled={loading}
+              className="rounded-lg bg-green-600 p-3 font-bold text-white hover:bg-green-700 disabled:bg-gray-400"
             >
-              Adicionar Produto
+              {loading ? 'Salvando...' : 'Adicionar Produto'}
             </button>
           </div>
         </div>
 
         {editandoId && (
-          <div className="mb-10 rounded-xl bg-white p-6 shadow">
+          <div className="mb-10 rounded-xl bg-white p-5 shadow sm:p-6">
             <h2 className="mb-6 text-2xl font-bold">Editar Produto</h2>
 
             <div className="grid gap-4">
               <input
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="rounded border p-3"
-                placeholder="Nome"
+                className="rounded border p-3 outline-none focus:border-blue-600"
+                placeholder="Nome do produto"
               />
 
               <input
                 value={editSubtitle}
                 onChange={(e) => setEditSubtitle(e.target.value)}
-                className="rounded border p-3"
+                className="rounded border p-3 outline-none focus:border-blue-600"
                 placeholder="Subtítulo"
               />
 
               <textarea
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
-                className="rounded border p-3"
+                className="min-h-28 rounded border p-3 outline-none focus:border-blue-600"
                 placeholder="Descrição"
               />
-
-              <select
-                value={editCategory}
-                onChange={(e) => setEditCategory(e.target.value)}
-                className="rounded border p-3"
-              >
-                <option>Combos</option>
-                <option>Marmitex</option>
-                <option>Bebidas</option>
-                <option>Sucos</option>
-                <option>Salgados</option>
-              </select>
 
               <input
                 value={editPrice}
                 type="number"
+                min="0"
+                step="0.01"
                 onChange={(e) => setEditPrice(e.target.value)}
-                className="rounded border p-3"
+                className="rounded border p-3 outline-none focus:border-blue-600"
                 placeholder="Preço"
               />
 
               <input
                 value={editImage}
                 onChange={(e) => setEditImage(e.target.value)}
-                className="rounded border p-3"
+                className="rounded border p-3 outline-none focus:border-blue-600"
                 placeholder="URL da imagem"
               />
 
-              {editCategory === 'Marmitex' && (
-                <>
-                  <input
-                    type="number"
-                    placeholder="Máximo de misturas"
-                    value={editMaxMisturas}
-                    onChange={(e) => setEditMaxMisturas(Number(e.target.value))}
-                    className="rounded border p-3"
-                  />
+              <select
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value)}
+                className="rounded border bg-white p-3 outline-none focus:border-blue-600"
+              >
+                <option value="">Selecione uma categoria</option>
 
-                  <input
-                    type="number"
-                    placeholder="Máximo de acompanhamentos"
-                    value={editMaxAcompanhamentos}
-                    onChange={(e) => setEditMaxAcompanhamentos(Number(e.target.value))}
-                    className="rounded border p-3"
-                  />
-                </>
-              )}
+                {categorias.map((categoria) => (
+                  <option key={categoria.id} value={categoria.nome}>
+                    {categoria.nome}
+                  </option>
+                ))}
+              </select>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <button
+                  type="button"
                   onClick={salvarEdicao}
-                  className="flex-1 rounded-lg bg-blue-600 p-3 font-bold text-white hover:bg-blue-700"
+                  disabled={loading}
+                  className="flex-1 rounded-lg bg-blue-600 p-3 font-bold text-white hover:bg-blue-700 disabled:bg-gray-400"
                 >
-                  Salvar
+                  {loading ? 'Salvando...' : 'Salvar'}
                 </button>
 
                 <button
-                  onClick={() => setEditandoId(null)}
+                  type="button"
+                  onClick={cancelarEdicao}
                   className="flex-1 rounded-lg bg-gray-500 p-3 font-bold text-white hover:bg-gray-600"
                 >
                   Cancelar
@@ -476,53 +418,49 @@ export default function ProdutosPage() {
         )}
 
         <div className="space-y-5">
+          {products.length === 0 && (
+            <div className="rounded-xl bg-white p-8 text-center shadow">
+              <h2 className="text-xl font-bold sm:text-2xl">Nenhum produto cadastrado.</h2>
+            </div>
+          )}
+
           {products.map((product) => (
-            <div
-              key={product.id}
-              className="
-          rounded-xl
-          bg-white
-          p-5
-          shadow
-        "
-            >
+            <div key={product.id} className="rounded-xl bg-white p-5 shadow">
               <div className="flex flex-col gap-5 md:flex-row">
                 <img
-                  src={product.image}
-                  alt={product.title}
-                  className="
-              h-40
-              w-full
-              rounded-lg
-              object-cover
-              md:w-40
-            "
+                  src={product.image || 'https://placehold.co/600x400?text=Sem+Imagem'}
+                  alt={product.title || 'Produto'}
+                  className="h-48 w-full rounded-lg object-cover md:h-40 md:w-40"
                 />
 
                 <div className="flex-1">
-                  <h2 className="text-2xl font-bold">{product.title}</h2>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold">{product.title}</h2>
 
-                  <p className="text-gray-600">{product.description}</p>
+                      {product.subtitle && <p className="text-gray-500">{product.subtitle}</p>}
+                    </div>
 
-                  <p className="mt-2 font-bold text-green-600">
-                    R$ {Number(product.price).toFixed(2)}
+                    <span
+                      className={`w-fit rounded-full px-3 py-1 text-sm font-bold ${
+                        product.ativo === true
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}
+                    >
+                      {product.ativo === true ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </div>
+
+                  <p className="mt-3 text-gray-600">{product.description}</p>
+
+                  <p className="mt-3 font-bold text-green-600">
+                    R$ {Number(product.price || 0).toFixed(2)}
                   </p>
-
-                  {product.category === 'Marmitex' && (
-                    <>
-                      <p className="mt-2 text-sm">
-                        🥩 Misturas: {product.misturas?.length || 0}/{product.maxMisturas || 0}
-                      </p>
-
-                      <p className="text-sm">
-                        🥗 Acompanhamentos: {product.acompanhamentos?.length || 0}/
-                        {product.maxAcompanhamentos || 0}
-                      </p>
-                    </>
-                  )}
 
                   <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                     <button
+                      type="button"
                       onClick={() => alternarAtivo(product)}
                       className={`rounded-lg p-3 font-bold text-white ${
                         product.ativo === true
@@ -532,30 +470,19 @@ export default function ProdutosPage() {
                     >
                       {product.ativo === true ? '⏸ Inativar' : '▶️ Ativar'}
                     </button>
+
                     <button
+                      type="button"
                       onClick={() => editarProduto(product)}
-                      className="
-                  rounded-lg
-                  bg-yellow-500
-                  p-3
-                  font-bold
-                  text-white
-                  hover:bg-yellow-600
-                "
+                      className="rounded-lg bg-yellow-500 p-3 font-bold text-white hover:bg-yellow-600"
                     >
                       ✏️ Editar
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => excluirProduto(product.id)}
-                      className="
-                  rounded-lg
-                  bg-red-600
-                  p-3
-                  font-bold
-                  text-white
-                  hover:bg-red-700
-                "
+                      className="rounded-lg bg-red-600 p-3 font-bold text-white hover:bg-red-700"
                     >
                       🗑 Excluir
                     </button>
@@ -568,172 +495,4 @@ export default function ProdutosPage() {
       </div>
     </main>
   );
-  {
-    /* =========================
-    MODAL OPÇÕES DO PRODUTO
-========================= */
-  }
-
-  {
-    produtoSelecionado && (
-      <div
-        className="
-fixed
-inset-0
-z-50
-flex
-items-center
-justify-center
-bg-black/50
-p-4
-"
-      >
-        <div
-          className="
-max-h-[90vh]
-w-full
-max-w-3xl
-overflow-auto
-rounded-xl
-bg-white
-p-6
-"
-        >
-          <h2 className="mb-6 text-3xl font-bold">Opções - {produtoSelecionado.title}</h2>
-
-          {/* =========================
-        MISTURAS
-========================= */}
-
-          <div className="mb-8">
-            <h3 className="mb-4 text-xl font-bold">🥩 Misturas</h3>
-
-            <p className="mb-3 text-sm text-gray-600">
-              Escolha até {produtoSelecionado.maxMisturas || 0}
-            </p>
-
-            <div className="space-y-3">
-              {misturas.map((item) => (
-                <label
-                  key={item.id}
-                  className="
-flex
-cursor-pointer
-items-center
-justify-between
-rounded-lg
-border
-p-4
-hover:bg-gray-100
-"
-                >
-                  <div>
-                    <p className="font-semibold">{item.nome}</p>
-
-                    {item.acrescimo > 0 && (
-                      <p className="text-sm text-gray-500">
-                        + R$ {Number(item.acrescimo).toFixed(2)}
-                      </p>
-                    )}
-                  </div>
-
-                  <input
-                    type="checkbox"
-                    checked={misturasSelecionadas.includes(item.id)}
-                    disabled={
-                      !misturasSelecionadas.includes(item.id) &&
-                      misturasSelecionadas.length >= produtoSelecionado.maxMisturas
-                    }
-                    onChange={() => toggleMistura(item.id)}
-                    className="
-h-5
-w-5
-"
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* =========================
-     ACOMPANHAMENTOS
-========================= */}
-
-          <div className="mb-8">
-            <h3 className="mb-4 text-xl font-bold">🥗 Acompanhamentos</h3>
-
-            <p className="mb-3 text-sm text-gray-600">
-              Escolha até {produtoSelecionado.maxAcompanhamentos || 0}
-            </p>
-
-            <div className="space-y-3">
-              {acompanhamentos.map((item) => (
-                <label
-                  key={item.id}
-                  className="
-flex
-cursor-pointer
-items-center
-justify-between
-rounded-lg
-border
-p-4
-hover:bg-gray-100
-"
-                >
-                  <span className="font-semibold">{item.nome}</span>
-
-                  <input
-                    type="checkbox"
-                    checked={acompanhamentosSelecionados.includes(item.id)}
-                    disabled={
-                      !acompanhamentosSelecionados.includes(item.id) &&
-                      acompanhamentosSelecionados.length >= produtoSelecionado.maxAcompanhamentos
-                    }
-                    onChange={() => toggleAcompanhamento(item.id)}
-                    className="
-h-5
-w-5
-"
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-            <button
-              onClick={salvarOpcoes}
-              className="
-flex-1
-rounded-lg
-bg-green-600
-p-3
-font-bold
-text-white
-hover:bg-green-700
-"
-            >
-              Salvar
-            </button>
-
-            <button
-              onClick={() => setProdutoSelecionado(null)}
-              className="
-flex-1
-rounded-lg
-bg-gray-500
-p-3
-font-bold
-text-white
-hover:bg-gray-600
-"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 }

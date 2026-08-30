@@ -182,17 +182,8 @@ export default function EntregaPage() {
             <div className="rounded-lg border p-5">
               <h3 className="mb-2 text-xl font-bold">Endereço da Loja</h3>
 
-              <p>Rod. Washington Luiz, 220</p>
+              <p>AVENIDA JOÃO BERTOLDO, 160 - Parque das Nacoes</p>
               <p>Espírito Santo do Pinhal - SP</p>
-            </div>
-
-            <div className="rounded-lg border p-5">
-              <h3 className="mb-2 text-xl font-bold">Horário estimado</h3>
-
-              <p>
-                Seu pedido ficará pronto em aproximente, 40 minutos. Venha buscá-lo no horário
-                estimado para evitar filas.
-              </p>
             </div>
 
             <button

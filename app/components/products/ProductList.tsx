@@ -1,104 +1,77 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+
 import { collection, getDocs } from 'firebase/firestore';
+
 import { db } from '../../lib/firebase';
-import { useRouter } from 'next/navigation';
 
 import CategoryFilter from './CategoryFilter';
+
 import ProductCard from './ProductCard';
+
 import FloatingCart from './FloatingCart';
 
+interface Produto {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  image: string;
+  price: number;
+  category: string;
+  ativo: boolean;
+}
+
 export default function ProductList() {
-  const [products, setProducts] = useState<any[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState('Marmitex');
+  const [products, setProducts] = useState<Produto[]>([]);
+  const [categories, setCategories] = useState<string[]>(['Todos']);
+  const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [cart, setCart] = useState<any[]>([]);
   const [search, setSearch] = useState('');
-
-  const router = useRouter();
 
   async function carregarProdutos() {
     try {
       const productsSnapshot = await getDocs(collection(db, 'products'));
 
-      const listaProdutos: any[] = [];
+      const listaProdutos: Produto[] = [];
 
       productsSnapshot.forEach((doc) => {
         const data = doc.data();
 
-        if (data.ativo !== true) return;
+        if (data.ativo !== true) {
+          return;
+        }
 
         listaProdutos.push({
           id: doc.id,
-          ...data,
-        });
-      });
-
-      const sobremesasSnapshot = await getDocs(collection(db, 'sobremesas'));
-
-      const listaSobremesas: any[] = [];
-
-      sobremesasSnapshot.forEach((doc) => {
-        const data = doc.data();
-
-        if (data.ativo !== true) return;
-
-        listaSobremesas.push({
-          id: `sobremesa-${doc.id}`,
-          title: data.nome,
-          subtitle: '',
-          description: '',
+          title: data.title || '',
+          subtitle: data.subtitle || '',
+          description: data.description || '',
           image: data.image || '',
           price: Number(data.price || 0),
-          category: 'Sobremesas',
-          sobremesaId: doc.id,
+          category: data.category || 'Outros',
+          ativo: true,
         });
       });
 
-      const listaCompleta = [...listaProdutos, ...listaSobremesas];
+      listaProdutos.sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
 
-      const ordemMarmitex: Record<string, number> = {
-        'Marmita P': 1,
-        'Marmita PP': 2,
-        'Marmita M': 3,
-        'Marmita G': 4,
-        'Marmita GG': 5,
-        'Marmitex P': 1,
-        'Marmitex PP': 2,
-        'Marmitex M': 3,
-        'Marmitex G': 4,
-        'Marmitex GG': 5,
-      };
+      setProducts(listaProdutos);
 
-      listaCompleta.sort((a, b) => {
-        const aMarmitex = a.category === 'Marmitex' || a.category === 'Marmitas';
+      const categoriasDoBanco = Array.from(
+        new Set(
+          listaProdutos
+            .map((produto) => produto.category.trim())
+            .filter((categoria) => categoria !== '')
+        )
+      ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
-        const bMarmitex = b.category === 'Marmitex' || b.category === 'Marmitas';
+      setCategories(['Todos', ...categoriasDoBanco]);
 
-        if (aMarmitex && !bMarmitex) {
-          return -1;
-        }
-
-        if (!aMarmitex && bMarmitex) {
-          return 1;
-        }
-
-        if (aMarmitex && bMarmitex) {
-          const ordemA = ordemMarmitex[a.title] ?? 999;
-
-          const ordemB = ordemMarmitex[b.title] ?? 999;
-
-          if (ordemA !== ordemB) {
-            return ordemA - ordemB;
-          }
-
-          return (a.title || '').localeCompare(b.title || '', 'pt-BR');
-        }
-
-        return (a.title || '').localeCompare(b.title || '', 'pt-BR');
-      });
-
-      setProducts(listaCompleta);
+      if (selectedCategory !== 'Todos' && !categoriasDoBanco.includes(selectedCategory)) {
+        setSelectedCategory('Todos');
+      }
     } catch (error) {
       console.error('Erro ao carregar produtos:', error);
     }
@@ -110,54 +83,50 @@ export default function ProductList() {
     const savedCart = localStorage.getItem('cart');
 
     if (savedCart) {
-      setCart(JSON.parse(savedCart));
+      try {
+        const carrinhoSalvo = JSON.parse(savedCart);
+
+        if (Array.isArray(carrinhoSalvo)) {
+          setCart(carrinhoSalvo);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar carrinho:', error);
+
+        localStorage.removeItem('cart');
+      }
     }
   }, []);
 
-  const categories = [
-    'Marmitex',
-    'Bebidas',
-    'Salgados',
-    'Sucos',
-    'Panquecas',
-    'Lanches Naturais',
-    'Sobremesas',
-  ];
-
   const filteredProducts = products.filter((product) => {
-    const isMarmitex = product.category === 'Marmitex' || product.category === 'Marmitas';
-
-    const categoria =
-      selectedCategory === 'Marmitex' ? isMarmitex : product.category === selectedCategory;
+    const categoriaSelecionada =
+      selectedCategory === 'Todos' || product.category === selectedCategory;
 
     const titulo = (product.title || '').toLowerCase();
 
     const descricao = (product.description || '').toLowerCase();
 
-    const busca = search.toLowerCase();
+    const subtitulo = (product.subtitle || '').toLowerCase();
 
-    const pesquisa = titulo.includes(busca) || descricao.includes(busca);
+    const busca = search.toLowerCase().trim();
 
-    return categoria && pesquisa;
+    const pesquisa =
+      titulo.includes(busca) || descricao.includes(busca) || subtitulo.includes(busca);
+
+    return categoriaSelecionada && pesquisa;
   });
 
-  const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const totalItems = cart.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
 
-  function adicionarAoCarrinho(product: any) {
-    const isMarmitex = product.category === 'Marmitex' || product.category === 'Marmitas';
-
-    if (isMarmitex) {
-      router.push(`/montar/${product.id}`);
-
-      return;
-    }
-
+  function adicionarAoCarrinho(product: Produto) {
     const novoCarrinho = [...cart];
 
     const index = novoCarrinho.findIndex((item) => item.id === product.id);
 
     if (index >= 0) {
-      novoCarrinho[index].quantity += 1;
+      novoCarrinho[index] = {
+        ...novoCarrinho[index],
+        quantity: Number(novoCarrinho[index].quantity || 0) + 1,
+      };
     } else {
       novoCarrinho.push({
         ...product,
@@ -181,7 +150,7 @@ export default function ProductList() {
       <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
         <input
           type="text"
-          placeholder="Pesquisar..."
+          placeholder="Pesquisar produto..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="mb-6 w-full rounded-lg border p-3 outline-none"
@@ -207,6 +176,8 @@ export default function ProductList() {
           {filteredProducts.length === 0 && (
             <div className="rounded-xl bg-white p-8 text-center shadow">
               <h2 className="text-xl font-bold sm:text-2xl">Nenhum produto encontrado.</h2>
+
+              <p className="mt-2 text-gray-600">Não existem produtos ativos nesta categoria.</p>
             </div>
           )}
         </div>

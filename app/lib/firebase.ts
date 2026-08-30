@@ -1,19 +1,21 @@
-import { getApps, initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBsu0b9Jgln63F_f6y4SerCfbd5yYGar6c',
-  authDomain: 'cardapio-82e02.firebaseapp.com',
-  projectId: 'cardapio-82e02',
-  storageBucket: 'cardapio-82e02.appspot.com',
-  messagingSenderId: '554740889117',
-  appId: '1:554740889117:web:3f4a6434d4c17fcef7f8f4',
-  measurementId: 'G-QZV8E8B3Q2',
+  apiKey: 'AIzaSyBQeqIXciSAcgEPRaO5vxY2j-AZWru5CFM',
+  authDomain: 'ricardo-997a4.firebaseapp.com',
+  projectId: 'ricardo-997a4',
+  storageBucket: 'ricardo-997a4.firebasestorage.app',
+  messagingSenderId: '816054949916',
+  appId: '1:816054949916:web:ce07f5d420495419a4e7d9',
+  measurementId: 'G-GKNGJTFSPG',
 };
 
-const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 
 export const db = getFirestore(app);
+
+export default app;

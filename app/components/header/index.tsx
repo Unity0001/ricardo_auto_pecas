@@ -4,7 +4,7 @@ export default function HeaderComp() {
   return (
     <div className="w-full">
       <div className="relative h-40 sm:h-56 md:h-64 bg-gray-300">
-        <img src="/background_logo.jpeg" alt="Header" className="h-full w-full object-cover" />
+        <img src="/backgroundlogo.png" alt="Header" className="h-full w-full object-cover" />
 
         <a href="/admin" className="absolute right-3 top-3 sm:right-5 sm:top-5">
           <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-500 shadow-lg sm:h-14 sm:w-14">
@@ -21,19 +21,19 @@ export default function HeaderComp() {
         <div className="mx-auto max-w-6xl px-2">
           <div className="relative flex justify-center">
             <div className="-mt-12 sm:-mt-16 h-24 w-24 sm:h-32 sm:w-32 overflow-hidden rounded-xl border-4 border-white bg-white shadow-lg">
-              <img src="/logo.jpeg" alt="Logo" className="h-full w-full object-cover" />
+              <img src="/background.png" alt="Logo" className="h-full w-full object-cover" />
             </div>
           </div>
 
           <div className="pt-2 text-center"></div>
 
           <div className="mt-5 text-center">
-            <h1 className="text-2xl font-bold sm:text-4xl">Rei do Suco</h1>
+            <h1 className="text-2xl font-bold sm:text-4xl">Ricardo Auto Peças</h1>
 
             <p className="mt-2 text-sm text-blue-500 sm:text-base">
-              Av. Washington Luis,220
+              AVENIDA JOÃO BERTOLDO, 160 - Parque das Nacoes, Espírito Santo do Pinhal
               <br />
-              Contato:(19) 995498950
+              Contato:(19) 99110-6391
             </p>
 
             <div className="mt-8 flex justify-center gap-10 sm:gap-12">
@@ -46,7 +46,7 @@ export default function HeaderComp() {
               <div className="text-center">
                 <p className="font-semibold">🏪 Retirada</p>
 
-                <p className="text-gray-600">40 min</p>
+                <p className="text-gray-600">Imediata</p>
               </div>
             </div>
           </div>
