@@ -41,7 +41,10 @@ export default function Dashboard() {
           <button
             onClick={() => router.push('/admin/dashboards/categorias')}
             className=" rounded-xl bg-green-600 p-10 text-xl font-bold text-white shadow-lg transition hover:bg-green-700 active:scale-95 "
-          />
+          >
+            {' '}
+            🏷️ <br /> Categorias{' '}
+          </button>
         </div>{' '}
       </div>{' '}
     </main>
